@@ -1,0 +1,2453 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wavie Fresh — Graphical WAV Sample Browser & Organizer</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            obsidian: {
+              950: '#07090e',
+              900: '#0c1017',
+              850: '#111621',
+              800: '#161d2b',
+              750: '#1d2638',
+              700: '#263147',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom subtle scrollbars for studio feel */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0c1017;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #263147;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #384866;
+    }
+
+    /* Range input styling */
+    input[type="range"].studio-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+    input[type="range"].studio-slider::-webkit-slider-runnable-track {
+      height: 5px;
+      border-radius: 999px;
+      background: #1d2638;
+    }
+    input[type="range"].studio-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 14px;
+      width: 14px;
+      border-radius: 50%;
+      background: #22d3ee;
+      margin-top: -4.5px;
+      box-shadow: 0 0 8px rgba(34, 211, 238, 0.7);
+      transition: transform 0.1s ease;
+    }
+    input[type="range"].studio-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+
+    .glass-panel {
+      background: rgba(17, 22, 33, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(56, 72, 102, 0.35);
+    }
+
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.9; }
+      70% { transform: scale(1.35); opacity: 0; }
+      100% { transform: scale(1.35); opacity: 0; }
+    }
+    .animate-pulse-ring {
+      animation: pulse-ring 1.5s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+    }
+  </style>
+</head>
+<body class="bg-obsidian-950 text-slate-100 font-sans antialiased selection:bg-cyan-500/30 selection:text-cyan-200 overflow-x-hidden flex flex-col min-h-screen lg:h-screen lg:overflow-hidden">
+
+  <!-- ==================== TOP HEADER & STUDIO TOOLBAR ==================== -->
+  <header class="bg-obsidian-900 border-b border-obsidian-700/70 px-3 sm:px-5 py-2.5 flex flex-wrap items-center justify-between gap-3 z-30 shrink-0">
+    <!-- Branding -->
+    <div class="flex items-center gap-3">
+      <div class="relative flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-400 via-emerald-400 to-teal-600 text-obsidian-950 shadow-lg shadow-cyan-500/20">
+        <i data-lucide="waves" class="w-5 h-5 stroke-[2.5]"></i>
+        <span class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-obsidian-900"></span>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-base sm:text-lg font-extrabold tracking-tight bg-gradient-to-r from-white via-cyan-100 to-emerald-200 bg-clip-text text-transparent">
+            WAVIE FRESH
+          </h1>
+          <span class="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+            v2.4 Studio
+          </span>
+          <!-- Runtime Environment Status Pill (Tauri Native vs Browser) -->
+          <span id="runtimeBadge" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800/90 text-slate-300 border border-slate-700 flex items-center gap-1.5">
+            <span id="runtimeDot" class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+            <span id="runtimeLabel">Detecting Runtime...</span>
+          </span>
+        </div>
+        <p class="text-[11px] text-slate-400 hidden sm:block">Sonic Similarity Map & Smart WAV Organizer</p>
+      </div>
+    </div>
+
+    <!-- Search & Filter Controls -->
+    <div class="flex flex-wrap items-center gap-2 flex-1 max-w-4xl justify-end">
+      <!-- Search Input -->
+      <div class="relative flex-1 min-w-[160px] max-w-xs">
+        <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+        <input
+          id="searchInput"
+          type="text"
+          placeholder="Search samples, tags, key..."
+          class="w-full bg-obsidian-800 border border-obsidian-700 rounded-lg pl-8 pr-7 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400 transition"
+        />
+        <button id="clearSearchBtn" class="hidden absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+
+      <!-- Musical Key Filter -->
+      <div class="flex items-center bg-obsidian-800 border border-obsidian-700 rounded-lg px-2 py-1">
+        <i data-lucide="music" class="w-3.5 h-3.5 text-amber-400 mr-1.5"></i>
+        <select id="keyFilter" class="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer">
+          <option value="ALL" class="bg-obsidian-850">All Keys</option>
+          <option value="C min" class="bg-obsidian-850">C min</option>
+          <option value="D min" class="bg-obsidian-850">D min</option>
+          <option value="E min" class="bg-obsidian-850">E min</option>
+          <option value="F min" class="bg-obsidian-850">F min</option>
+          <option value="F# maj" class="bg-obsidian-850">F# maj</option>
+          <option value="G min" class="bg-obsidian-850">G min</option>
+          <option value="A min" class="bg-obsidian-850">A min</option>
+          <option value="A# min" class="bg-obsidian-850">A# min</option>
+        </select>
+      </div>
+
+      <!-- BPM Range Filter -->
+      <div class="flex items-center gap-1.5 bg-obsidian-800 border border-obsidian-700 rounded-lg px-2.5 py-1">
+        <span class="text-[11px] font-mono text-slate-400">BPM</span>
+        <input id="bpmMin" type="number" value="70" min="50" max="200" class="w-10 bg-obsidian-900 border border-obsidian-700 rounded px-1 py-0.5 text-xs font-mono text-center text-cyan-300 focus:outline-none focus:border-cyan-400" />
+        <span class="text-slate-500 text-xs">-</span>
+        <input id="bpmMax" type="number" value="175" min="50" max="200" class="w-10 bg-obsidian-900 border border-obsidian-700 rounded px-1 py-0.5 text-xs font-mono text-center text-cyan-300 focus:outline-none focus:border-cyan-400" />
+      </div>
+
+      <!-- Folder / Auto-Organize Mode Toggle -->
+      <button
+        id="folderModeToggle"
+        title="Toggle Virtual Auto-Organize Folder Tree"
+        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-obsidian-800 border border-obsidian-700 text-slate-300 hover:border-emerald-400/60 hover:text-emerald-300 transition"
+      >
+        <i data-lucide="folder-tree" class="w-3.5 h-3.5 text-emerald-400"></i>
+        <span class="hidden md:inline">Auto-Organize</span>
+      </button>
+
+      <!-- Scan / Import Folder (Native Tauri Dialog or Browser webkitdirectory) -->
+      <button
+        id="scanFolderBtn"
+        title="Recursively scan a local folder of WAV/audio samples"
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-obsidian-950 cursor-pointer shadow-md shadow-cyan-500/15 transition"
+      >
+        <i data-lucide="folder-search" class="w-3.5 h-3.5 stroke-[2.5]"></i>
+        <span>Scan Folder</span>
+      </button>
+      <input id="folderBrowserInput" type="file" webkitdirectory directory multiple accept=".wav,.aif,.aiff,.mp3,.ogg,.flac,audio/*" class="hidden" />
+
+      <!-- Quick Single/Multi File Import -->
+      <label
+        title="Import individual audio files"
+        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-obsidian-800 border border-obsidian-700 text-slate-200 hover:border-cyan-400/60 hover:text-cyan-300 cursor-pointer transition"
+      >
+        <i data-lucide="file-plus-2" class="w-3.5 h-3.5 text-cyan-400"></i>
+        <span class="hidden xl:inline">Files</span>
+        <input id="audioUploadInput" type="file" accept=".wav,.aif,.aiff,.mp3,.ogg,.flac,audio/*" multiple class="hidden" />
+      </label>
+    </div>
+  </header>
+
+  <!-- ==================== CATEGORY FILTER PILLS & STATUS SUB-BAR ==================== -->
+  <div class="bg-obsidian-900/70 border-b border-obsidian-800 px-3 sm:px-5 py-2 flex flex-wrap items-center justify-between gap-2 shrink-0">
+    <!-- Category Pills -->
+    <div id="categoryPills" class="flex flex-wrap items-center gap-1.5">
+      <!-- Dynamically populated -->
+    </div>
+
+    <!-- Map Interaction Mode & Stats -->
+    <div class="flex items-center gap-2 text-xs">
+      <div class="hidden xl:flex items-center gap-3 text-[11px] text-slate-400 mr-2 font-mono">
+        <span class="flex items-center gap-1"><kbd class="px-1.5 py-0.5 bg-obsidian-800 border border-obsidian-700 rounded text-slate-300">↑↓←→</kbd> Nearest Neighbor</span>
+        <span class="flex items-center gap-1"><kbd class="px-1.5 py-0.5 bg-obsidian-800 border border-obsidian-700 rounded text-slate-300">Space</kbd> Replay</span>
+        <span class="flex items-center gap-1"><kbd class="px-1.5 py-0.5 bg-obsidian-800 border border-obsidian-700 rounded text-slate-300">Shift+Drag</kbd> Lasso</span>
+      </div>
+
+      <span id="visibleCountBadge" class="font-mono text-[11px] px-2 py-0.5 rounded-full bg-obsidian-800 text-slate-300 border border-obsidian-700">
+        48 / 48 Samples
+      </span>
+    </div>
+  </div>
+
+  <!-- ==================== MAIN WORKSPACE GRID ==================== -->
+  <main class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+
+    <!-- LEFT COLLAPSIBLE VIRTUAL FOLDER TREE (Auto-Organize Inspector) -->
+    <aside id="folderTreeSidebar" class="hidden w-full lg:w-72 bg-obsidian-900 border-b lg:border-b-0 lg:border-r border-obsidian-800 flex-col shrink-0 max-h-80 lg:max-h-none">
+      <div class="p-3 border-b border-obsidian-800 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i data-lucide="folder-git-2" class="w-4 h-4 text-emerald-400"></i>
+          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-200">Virtual Folder Structure</h2>
+        </div>
+        <select id="folderSchemaSelect" class="bg-obsidian-800 border border-obsidian-700 rounded px-1.5 py-0.5 text-[11px] font-mono text-emerald-300 focus:outline-none">
+          <option value="cat_key_bpm">[Cat]/[Key]/[BPM]</option>
+          <option value="bpm_cat_key">[BPM]/[Cat]/[Key]</option>
+          <option value="key_cat">[Key]/[Cat]</option>
+        </select>
+      </div>
+      <div class="px-3 py-2 bg-obsidian-950/60 border-b border-obsidian-800/80 text-[11px] font-mono text-slate-400 truncate" id="activeVirtualPathDisplay">
+        /Kicks/C min/128 BPM/
+      </div>
+      <div id="folderTreeContainer" class="flex-1 overflow-y-auto p-2 space-y-1 text-xs">
+        <!-- Populated dynamically -->
+      </div>
+    </aside>
+
+    <!-- CENTER: INTERACTIVE 2D SIMILARITY MAP + BOTTOM WAVEFORM/PITCH DECK -->
+    <section class="flex-1 flex flex-col min-w-0 bg-obsidian-950 relative">
+
+      <!-- 2D Similarity Map Container -->
+      <div id="mapWrapper" class="relative flex-1 min-h-[340px] sm:min-h-[400px] overflow-hidden select-none">
+        <canvas id="similarityCanvas" class="block w-full h-full cursor-crosshair"></canvas>
+
+        <!-- Top-Left Map Toolbar Overlay -->
+        <div class="absolute top-3 left-3 flex flex-wrap items-center gap-1.5 z-10">
+          <!-- Pointer / Navigate Mode -->
+          <button
+            id="modeSelectBtn"
+            class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-cyan-500 text-obsidian-950 shadow-lg shadow-cyan-500/20 transition"
+            title="Click or Hover to Audition & Navigate"
+          >
+            <i data-lucide="mouse-pointer-2" class="w-3.5 h-3.5"></i>
+            <span>Audition</span>
+          </button>
+
+          <!-- Lasso Multi-Select Mode -->
+          <button
+            id="modeLassoBtn"
+            class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium glass-panel text-slate-200 hover:border-amber-400/60 hover:text-amber-300 transition"
+            title="Draw freeform polygon to batch-select samples"
+          >
+            <i data-lucide="lasso" class="w-3.5 h-3.5 text-amber-400"></i>
+            <span>Lasso Select</span>
+          </button>
+
+          <!-- Hover Audition Toggle -->
+          <button
+            id="hoverAuditionBtn"
+            class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium glass-panel text-emerald-300 border-emerald-500/40 transition"
+            title="Automatically trigger sound when hovering over dots"
+          >
+            <i data-lucide="volume-2" class="w-3.5 h-3.5"></i>
+            <span class="hidden sm:inline">Hover Play: ON</span>
+          </button>
+        </div>
+
+        <!-- Top-Right Zoom & Reset Controls -->
+        <div class="absolute top-3 right-3 flex items-center gap-1 glass-panel rounded-lg p-1 z-10">
+          <button id="zoomInBtn" class="p-1.5 rounded hover:bg-obsidian-700 text-slate-300 hover:text-white transition" title="Zoom In">
+            <i data-lucide="zoom-in" class="w-4 h-4"></i>
+          </button>
+          <button id="zoomOutBtn" class="p-1.5 rounded hover:bg-obsidian-700 text-slate-300 hover:text-white transition" title="Zoom Out">
+            <i data-lucide="zoom-out" class="w-4 h-4"></i>
+          </button>
+          <button id="resetViewBtn" class="p-1.5 rounded hover:bg-obsidian-700 text-slate-300 hover:text-white transition" title="Reset View">
+            <i data-lucide="maximize-2" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <!-- Floating Hover Tooltip -->
+        <div
+          id="mapTooltip"
+          class="hidden pointer-events-none absolute z-20 glass-panel rounded-xl px-3 py-2 shadow-2xl border border-obsidian-600/80 text-xs max-w-[230px]"
+        >
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <span id="tooltipCategory" class="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300">Kicks</span>
+            <span id="tooltipMeta" class="font-mono text-[10px] text-slate-400">128 BPM • C min</span>
+          </div>
+          <div id="tooltipName" class="font-semibold text-white truncate">WF_Kick_SubPunch_01.wav</div>
+          <div id="tooltipPath" class="font-mono text-[10px] text-emerald-400/90 truncate mt-0.5">/Kicks/C min/128/</div>
+        </div>
+
+        <!-- Bottom-Left Axis Legend -->
+        <div class="absolute bottom-3 left-3 pointer-events-none hidden sm:flex items-center gap-3 text-[10px] font-mono text-slate-500 bg-obsidian-950/75 px-2.5 py-1 rounded-md border border-obsidian-800/80">
+          <span>X-AXIS: Spectral Brightness / Transient Attack</span>
+          <span>•</span>
+          <span>Y-AXIS: Sub Weight / Harmonic Decay</span>
+        </div>
+      </div>
+
+      <!-- ==================== REAL-TIME WAVEFORM AUDITION & PITCH/TEMPO DECK ==================== -->
+      <div class="bg-obsidian-900 border-t border-obsidian-700/80 p-3 sm:p-4 shrink-0 z-20">
+        <div class="grid grid-cols-1 xl:grid-cols-12 gap-3 sm:gap-4 items-center">
+
+          <!-- Left: Active Sample Metadata & Transport (4 cols) -->
+          <div class="xl:col-span-4 flex items-center gap-3 min-w-0">
+            <button
+              id="playActiveBtn"
+              class="relative w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-400 to-emerald-500 hover:from-cyan-300 hover:to-emerald-400 text-obsidian-950 flex items-center justify-center shrink-0 shadow-lg shadow-cyan-500/25 transition active:scale-95"
+              title="Audition Sample (Spacebar)"
+            >
+              <i data-lucide="play" class="w-6 h-6 fill-current ml-0.5"></i>
+            </button>
+
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <span id="deckCategoryBadge" class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                  KICKS
+                </span>
+                <span id="deckDbId" class="text-[10px] font-mono text-slate-500">SQLite #001</span>
+              </div>
+              <h3 id="deckSampleName" class="text-sm font-bold text-white truncate mt-0.5">
+                WF_Kick_Obsidian808_Cmin.wav
+              </h3>
+              <div class="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] font-mono text-slate-400 mt-0.5">
+                <span id="deckBpm" class="text-amber-300">128 BPM</span>
+                <span>•</span>
+                <span id="deckKey" class="text-emerald-300">C min</span>
+                <span>•</span>
+                <span id="deckDuration">0.68s</span>
+                <span>•</span>
+                <span>48kHz/24bit</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Center: Interactive Waveform Canvas (4 cols) -->
+          <div class="xl:col-span-4 bg-obsidian-950 border border-obsidian-800 rounded-xl p-2 relative h-20 flex flex-col justify-between overflow-hidden">
+            <div class="flex items-center justify-between text-[10px] font-mono text-slate-500 px-1 z-10">
+              <span>WAVEFORM PREVIEW</span>
+              <span id="deckVirtualFolder" class="text-emerald-400/80 truncate max-w-[180px]">/Kicks/C min/128 BPM/</span>
+            </div>
+            <canvas id="waveformCanvas" class="w-full h-12 block cursor-pointer"></canvas>
+          </div>
+
+          <!-- Right: Real-Time Pitch/Tempo Sliders + DAW Drag Handle (4 cols) -->
+          <div class="xl:col-span-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <!-- Pitch & Tempo Sliders -->
+            <div class="flex-1 bg-obsidian-850 border border-obsidian-800 rounded-xl px-3 py-2 space-y-2">
+              <!-- Pitch Slider -->
+              <div>
+                <div class="flex justify-between text-[11px] font-mono mb-0.5">
+                  <span class="text-slate-400 flex items-center gap-1">
+                    <i data-lucide="sliders" class="w-3 h-3 text-cyan-400"></i> PITCH
+                  </span>
+                  <div class="flex items-center gap-1.5">
+                    <span id="pitchValueLabel" class="text-cyan-300 font-semibold">0 st</span>
+                    <button id="resetPitchBtn" class="text-[10px] text-slate-500 hover:text-white underline">Reset</button>
+                  </div>
+                </div>
+                <input id="pitchSlider" type="range" min="-12" max="12" step="1" value="0" class="w-full studio-slider" />
+              </div>
+
+              <!-- Tempo / Playback Rate Slider -->
+              <div>
+                <div class="flex justify-between text-[11px] font-mono mb-0.5">
+                  <span class="text-slate-400 flex items-center gap-1">
+                    <i data-lucide="gauge" class="w-3 h-3 text-amber-400"></i> RATE / TEMPO
+                  </span>
+                  <div class="flex items-center gap-1.5">
+                    <span id="rateValueLabel" class="text-amber-300 font-semibold">1.00x</span>
+                    <button id="resetRateBtn" class="text-[10px] text-slate-500 hover:text-white underline">Reset</button>
+                  </div>
+                </div>
+                <input id="rateSlider" type="range" min="0.5" max="2.0" step="0.05" value="1.0" class="w-full studio-slider" />
+              </div>
+            </div>
+
+            <!-- Drag to DAW & Quick WAV Download Card -->
+            <div class="flex sm:flex-col gap-2 shrink-0">
+              <div
+                id="dawDragHandle"
+                draggable="true"
+                title="Drag directly into Ableton, FL Studio, Logic, or Desktop"
+                class="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-obsidian-800 hover:bg-obsidian-750 border border-dashed border-cyan-400/60 hover:border-cyan-300 text-cyan-200 cursor-grab active:cursor-grabbing transition select-none"
+              >
+                <i data-lucide="grip-vertical" class="w-4 h-4 text-cyan-400"></i>
+                <div class="text-left">
+                  <div class="text-xs font-bold leading-tight">Drag to DAW</div>
+                  <div class="text-[10px] font-mono text-slate-400">24-bit WAV</div>
+                </div>
+              </div>
+
+              <button
+                id="downloadSingleWavBtn"
+                class="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-obsidian-800 hover:bg-emerald-500/20 border border-obsidian-700 hover:border-emerald-400/60 text-xs font-medium text-slate-200 hover:text-emerald-300 transition"
+                title="Render & Download Processed .WAV"
+              >
+                <i data-lucide="download" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <span>Export WAV</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== RIGHT DRAWER: BATCH SELECTION, CLOUD SYNC & HISTORY LOG ==================== -->
+    <aside class="w-full lg:w-88 xl:w-96 bg-obsidian-900 border-t lg:border-t-0 lg:border-l border-obsidian-800 flex flex-col shrink-0 max-h-[540px] lg:max-h-none">
+
+      <!-- Drawer Header Tabs -->
+      <div class="p-3 border-b border-obsidian-800 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i data-lucide="layers" class="w-4 h-4 text-cyan-400"></i>
+          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-200">Batch Organizer & Sync</h2>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span id="selectedCountBadge" class="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+            1 Selected
+          </span>
+          <button id="clearSelectionBtn" class="text-[11px] text-slate-400 hover:text-rose-400 px-1.5 py-0.5 rounded transition" title="Clear Multi-Selection">
+            Clear
+          </button>
+        </div>
+      </div>
+
+      <!-- Selected Samples Queue List -->
+      <div class="flex-1 overflow-y-auto p-3 space-y-1.5 min-h-[140px]" id="selectedSamplesList">
+        <!-- Populated dynamically -->
+      </div>
+
+      <!-- Batch Export & Cloud Sync Section -->
+      <div class="p-3 bg-obsidian-850 border-t border-obsidian-800 space-y-3">
+        <div>
+          <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">
+            Auto-Organize Export Rule
+          </label>
+          <select id="exportRuleSelect" class="w-full bg-obsidian-900 border border-obsidian-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-400">
+            <option value="Category/Key/Sample.wav">Category / Key / Sample.wav</option>
+            <option value="BPM_Range/Category/Sample.wav">BPM_Range / Category / Sample.wav</option>
+            <option value="Key/Category_BPM/Sample.wav">Key / Category_BPM / Sample.wav</option>
+            <option value="Flat_Pack/Sample.wav">WavieFresh_Pack / Sample.wav</option>
+          </select>
+        </div>
+
+        <!-- 4 Export Destinations Grid -->
+        <div>
+          <span class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1.5">
+            Batch Export Destination
+          </span>
+          <div class="grid grid-cols-2 gap-2">
+            <!-- Local Storage -->
+            <button
+              data-dest="Local Storage"
+              class="export-dest-btn flex items-center gap-2 px-3 py-2 rounded-xl bg-obsidian-900 hover:bg-emerald-500/15 border border-obsidian-700 hover:border-emerald-400/60 text-left transition group"
+            >
+              <div class="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+                <i data-lucide="hard-drive" class="w-4 h-4"></i>
+              </div>
+              <div class="min-w-0">
+                <div class="text-xs font-semibold text-slate-100 truncate">Local Storage</div>
+                <div class="text-[10px] text-slate-400">Download WAVs</div>
+              </div>
+            </button>
+
+            <!-- Dropbox -->
+            <button
+              data-dest="Dropbox"
+              class="export-dest-btn flex items-center gap-2 px-3 py-2 rounded-xl bg-obsidian-900 hover:bg-blue-500/15 border border-obsidian-700 hover:border-blue-400/60 text-left transition group"
+            >
+              <div class="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+                <i data-lucide="box" class="w-4 h-4"></i>
+              </div>
+              <div class="min-w-0">
+                <div class="text-xs font-semibold text-slate-100 truncate">Dropbox</div>
+                <div class="text-[10px] text-slate-400">Studio Cloud</div>
+              </div>
+            </button>
+
+            <!-- iCloud Drive -->
+            <button
+              data-dest="iCloud Drive"
+              class="export-dest-btn flex items-center gap-2 px-3 py-2 rounded-xl bg-obsidian-900 hover:bg-cyan-500/15 border border-obsidian-700 hover:border-cyan-400/60 text-left transition group"
+            >
+              <div class="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+                <i data-lucide="cloud" class="w-4 h-4"></i>
+              </div>
+              <div class="min-w-0">
+                <div class="text-xs font-semibold text-slate-100 truncate">iCloud Drive</div>
+                <div class="text-[10px] text-slate-400">Apple Sync</div>
+              </div>
+            </button>
+
+            <!-- Google Drive -->
+            <button
+              data-dest="Google Drive"
+              class="export-dest-btn flex items-center gap-2 px-3 py-2 rounded-xl bg-obsidian-900 hover:bg-amber-500/15 border border-obsidian-700 hover:border-amber-400/60 text-left transition group"
+            >
+              <div class="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+                <i data-lucide="folder-sync" class="w-4 h-4"></i>
+              </div>
+              <div class="min-w-0">
+                <div class="text-xs font-semibold text-slate-100 truncate">Google Drive</div>
+                <div class="text-[10px] text-slate-400">Collab Vault</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Sync Progress Tracker -->
+        <div id="syncProgressBox" class="hidden bg-obsidian-900 border border-cyan-500/40 rounded-xl p-2.5 space-y-1.5">
+          <div class="flex items-center justify-between text-[11px] font-mono">
+            <span id="syncStatusText" class="text-cyan-300 flex items-center gap-1.5">
+              <i data-lucide="refresh-cw" class="w-3 h-3 animate-spin"></i> Syncing...
+            </span>
+            <span id="syncPercentText" class="text-slate-300">0%</span>
+          </div>
+          <div class="w-full h-1.5 bg-obsidian-800 rounded-full overflow-hidden">
+            <div id="syncProgressBar" class="h-full bg-gradient-to-r from-cyan-400 to-emerald-400 rounded-full transition-all duration-150" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SQLite Export History Log -->
+      <div class="h-44 bg-obsidian-950 border-t border-obsidian-800 flex flex-col shrink-0">
+        <div class="px-3 py-1.5 border-b border-obsidian-800/80 flex items-center justify-between">
+          <span class="text-[10px] font-mono uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+            <i data-lucide="database" class="w-3 h-3 text-emerald-400"></i>
+            <span id="dbFooterTitle">SQLite Sync & Export Log</span>
+          </span>
+          <div class="flex items-center gap-2">
+            <span id="logCountBadge" class="text-[10px] font-mono text-slate-500">0 entries</span>
+            <button id="resetDbBtn" class="text-[10px] font-mono text-slate-500 hover:text-rose-400 underline transition" title="Reset SQLite / Demo Library">
+              Reset DB
+            </button>
+          </div>
+        </div>
+        <div id="historyLogContainer" class="flex-1 overflow-y-auto p-2 space-y-1.5 font-mono text-[11px]">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- ==================== APPLICATION JAVASCRIPT ENGINE ==================== -->
+  <script>
+    /**
+     * WAVIE FRESH — Graphical WAV Sample Browser & Organizer
+     * Hybrid Desktop (Tauri v2 + SQLite + Native FS/Drag) & Web Browser Engine
+     */
+
+    // ==================== 0. TAURI V2 RUNTIME DETECTION ====================
+    const isTauri = Boolean(window.__TAURI__);
+    let sqliteDb = null;
+
+    function updateRuntimeIndicator() {
+      const badge = document.getElementById('runtimeBadge');
+      const dot = document.getElementById('runtimeDot');
+      const label = document.getElementById('runtimeLabel');
+      if (isTauri) {
+        badge.className = 'text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5 shadow-sm';
+        dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse';
+        label.textContent = 'Desktop Native • SQLite Connected';
+      } else {
+        badge.className = 'text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 flex items-center gap-1.5';
+        dot.className = 'w-1.5 h-1.5 rounded-full bg-cyan-400';
+        label.textContent = 'Web Browser Mode • In-Memory / File API';
+      }
+    }
+
+    // ==================== 1. CATEGORY DEFINITIONS & COLOR PALETTE ====================
+    const CATEGORIES = {
+      'Kicks':   { color: '#22d3ee', bg: 'rgba(34, 211, 238, 0.16)', border: 'rgba(34, 211, 238, 0.45)', cluster: { x: 0.22, y: 0.76 } },
+      'Bass':    { color: '#34d399', bg: 'rgba(52, 211, 153, 0.16)', border: 'rgba(52, 211, 153, 0.45)', cluster: { x: 0.34, y: 0.84 } },
+      'Snares':  { color: '#fbbf24', bg: 'rgba(251, 191, 36, 0.16)', border: 'rgba(251, 191, 36, 0.45)', cluster: { x: 0.56, y: 0.54 } },
+      'Hi-Hats': { color: '#f472b6', bg: 'rgba(244, 114, 182, 0.16)', border: 'rgba(244, 114, 182, 0.45)', cluster: { x: 0.82, y: 0.24 } },
+      'Synths':  { color: '#a78bfa', bg: 'rgba(167, 139, 250, 0.16)', border: 'rgba(167, 139, 250, 0.45)', cluster: { x: 0.64, y: 0.32 } },
+      'Pads':    { color: '#60a5fa', bg: 'rgba(96, 165, 250, 0.16)', border: 'rgba(96, 165, 250, 0.45)', cluster: { x: 0.30, y: 0.28 } },
+      'FX':      { color: '#fb923c', bg: 'rgba(251, 146, 60, 0.16)', border: 'rgba(251, 146, 60, 0.45)', cluster: { x: 0.80, y: 0.72 } },
+    };
+
+    const NOTE_FREQS = {
+      'C min':  65.41,
+      'D min':  73.42,
+      'E min':  82.41,
+      'F min':  87.31,
+      'F# maj': 92.50,
+      'G min':  98.00,
+      'A min':  110.00,
+      'A# min': 116.54,
+    };
+
+    // ==================== 2. BUILT-IN SAMPLE LIBRARY SEED DATA ====================
+    const RAW_SAMPLES = [
+      // Kicks
+      { name: 'WF_Kick_Obsidian808_Cmin.wav', category: 'Kicks', bpm: 128, key: 'C min', tone: 'sub', brightness: 0.25, decay: 0.75 },
+      { name: 'WF_Kick_PunchClub_Fmin.wav', category: 'Kicks', bpm: 126, key: 'F min', tone: 'punch', brightness: 0.42, decay: 0.45 },
+      { name: 'WF_Kick_Warehouse_Amin.wav', category: 'Kicks', bpm: 132, key: 'A min', tone: 'hard', brightness: 0.55, decay: 0.52 },
+      { name: 'WF_Kick_DeepHouse_Gmin.wav', category: 'Kicks', bpm: 124, key: 'G min', tone: 'warm', brightness: 0.32, decay: 0.58 },
+      { name: 'WF_Kick_TrapDistort_Dmin.wav', category: 'Kicks', bpm: 145, key: 'D min', tone: 'sub', brightness: 0.48, decay: 0.85 },
+      { name: 'WF_Kick_Analog909_Emin.wav', category: 'Kicks', bpm: 130, key: 'E min', tone: 'punch', brightness: 0.50, decay: 0.48 },
+      { name: 'WF_Kick_VelvetSub_F#maj.wav', category: 'Kicks', bpm: 118, key: 'F# maj', tone: 'warm', brightness: 0.22, decay: 0.70 },
+
+      // Bass
+      { name: 'WF_Bass_ReeseGrowl_Cmin.wav', category: 'Bass', bpm: 172, key: 'C min', tone: 'reese', brightness: 0.52, decay: 1.15 },
+      { name: 'WF_Bass_Glide808_Fmin.wav', category: 'Bass', bpm: 140, key: 'F min', tone: '808', brightness: 0.28, decay: 1.25 },
+      { name: 'WF_Bass_Acid303_Amin.wav', category: 'Bass', bpm: 134, key: 'A min', tone: 'acid', brightness: 0.72, decay: 0.65 },
+      { name: 'WF_Bass_DonkFM_Gmin.wav', category: 'Bass', bpm: 128, key: 'G min', tone: 'fm', brightness: 0.60, decay: 0.55 },
+      { name: 'WF_Bass_SubDrop_Dmin.wav', category: 'Bass', bpm: 150, key: 'D min', tone: '808', brightness: 0.20, decay: 1.40 },
+      { name: 'WF_Bass_MoogPluck_A#min.wav', category: 'Bass', bpm: 122, key: 'A# min', tone: 'fm', brightness: 0.48, decay: 0.62 },
+      { name: 'WF_Bass_NeuroWobble_Emin.wav', category: 'Bass', bpm: 174, key: 'E min', tone: 'reese', brightness: 0.68, decay: 1.05 },
+
+      // Snares
+      { name: 'WF_Snare_CrispyTrap_Cmin.wav', category: 'Snares', bpm: 145, key: 'C min', tone: 'trap', brightness: 0.75, decay: 0.34 },
+      { name: 'WF_Snare_AcousticSnap_Gmin.wav', category: 'Snares', bpm: 120, key: 'G min', tone: 'body', brightness: 0.58, decay: 0.42 },
+      { name: 'WF_Snare_Gated80s_Amin.wav', category: 'Snares', bpm: 112, key: 'A min', tone: 'gated', brightness: 0.66, decay: 0.68 },
+      { name: 'WF_Snare_RimClap_Dmin.wav', category: 'Snares', bpm: 126, key: 'D min', tone: 'clap', brightness: 0.80, decay: 0.30 },
+      { name: 'WF_Snare_DnBSlap_Fmin.wav', category: 'Snares', bpm: 174, key: 'F min', tone: 'body', brightness: 0.70, decay: 0.28 },
+      { name: 'WF_Snare_LofiDust_Emin.wav', category: 'Snares', bpm: 92, key: 'E min', tone: 'lofi', brightness: 0.40, decay: 0.38 },
+      { name: 'WF_Clap_StereoStack_F#maj.wav', category: 'Snares', bpm: 128, key: 'F# maj', tone: 'clap', brightness: 0.84, decay: 0.44 },
+
+      // Hi-Hats
+      { name: 'WF_Hat_Closed909_Cmin.wav', category: 'Hi-Hats', bpm: 130, key: 'C min', tone: 'closed', brightness: 0.88, decay: 0.14 },
+      { name: 'WF_Hat_OpenMetallic_Amin.wav', category: 'Hi-Hats', bpm: 128, key: 'A min', tone: 'open', brightness: 0.92, decay: 0.52 },
+      { name: 'WF_Hat_TrapTick_Fmin.wav', category: 'Hi-Hats', bpm: 150, key: 'F min', tone: 'closed', brightness: 0.95, decay: 0.10 },
+      { name: 'WF_Hat_ShakerGroove_Gmin.wav', category: 'Hi-Hats', bpm: 124, key: 'G min', tone: 'shaker', brightness: 0.78, decay: 0.24 },
+      { name: 'WF_Hat_RideShimmer_Dmin.wav', category: 'Hi-Hats', bpm: 136, key: 'D min', tone: 'open', brightness: 0.86, decay: 0.75 },
+      { name: 'WF_Hat_CrispPedal_A#min.wav', category: 'Hi-Hats', bpm: 116, key: 'A# min', tone: 'closed', brightness: 0.82, decay: 0.18 },
+      { name: 'WF_Hat_VinylPerc_Emin.wav', category: 'Hi-Hats', bpm: 95, key: 'E min', tone: 'shaker', brightness: 0.65, decay: 0.22 },
+
+      // Synths
+      { name: 'WF_Synth_CyberLead_Amin.wav', category: 'Synths', bpm: 128, key: 'A min', tone: 'lead', brightness: 0.82, decay: 0.85 },
+      { name: 'WF_Synth_PluckBell_F#maj.wav', category: 'Synths', bpm: 122, key: 'F# maj', tone: 'pluck', brightness: 0.76, decay: 0.65 },
+      { name: 'WF_Synth_RaveStab_Cmin.wav', category: 'Synths', bpm: 134, key: 'C min', tone: 'stab', brightness: 0.85, decay: 0.55 },
+      { name: 'WF_Synth_ArpSpark_Emin.wav', category: 'Synths', bpm: 140, key: 'E min', tone: 'pluck', brightness: 0.88, decay: 0.72 },
+      { name: 'WF_Synth_BrassHit_Dmin.wav', category: 'Synths', bpm: 145, key: 'D min', tone: 'stab', brightness: 0.74, decay: 0.78 },
+      { name: 'WF_Synth_JunoChord_Gmin.wav', category: 'Synths', bpm: 118, key: 'G min', tone: 'lead', brightness: 0.68, decay: 0.95 },
+      { name: 'WF_Synth_GlassKeys_Fmin.wav', category: 'Synths', bpm: 110, key: 'F min', tone: 'pluck', brightness: 0.80, decay: 0.80 },
+
+      // Pads
+      { name: 'WF_Pad_NebulaLush_F#maj.wav', category: 'Pads', bpm: 115, key: 'F# maj', tone: 'lush', brightness: 0.45, decay: 1.65 },
+      { name: 'WF_Pad_DarkDrone_Cmin.wav', category: 'Pads', bpm: 90, key: 'C min', tone: 'dark', brightness: 0.26, decay: 1.80 },
+      { name: 'WF_Pad_CelestialChoir_Amin.wav', category: 'Pads', bpm: 124, key: 'A min', tone: 'lush', brightness: 0.62, decay: 1.55 },
+      { name: 'WF_Pad_TapeStrings_Dmin.wav', category: 'Pads', bpm: 100, key: 'D min', tone: 'warm', brightness: 0.40, decay: 1.50 },
+      { name: 'WF_Pad_HorizonSweep_Emin.wav', category: 'Pads', bpm: 128, key: 'E min', tone: 'lush', brightness: 0.55, decay: 1.60 },
+      { name: 'WF_Pad_SubtleAurora_A#min.wav', category: 'Pads', bpm: 108, key: 'A# min', tone: 'warm', brightness: 0.38, decay: 1.70 },
+
+      // FX
+      { name: 'WF_FX_WhiteRiser_Cmin.wav', category: 'FX', bpm: 128, key: 'C min', tone: 'riser', brightness: 0.90, decay: 1.45 },
+      { name: 'WF_FX_LaserZap_Amin.wav', category: 'FX', bpm: 140, key: 'A min', tone: 'zap', brightness: 0.86, decay: 0.48 },
+      { name: 'WF_FX_SubImpact_Fmin.wav', category: 'FX', bpm: 130, key: 'F min', tone: 'impact', brightness: 0.35, decay: 1.35 },
+      { name: 'WF_FX_ReverseCrash_Gmin.wav', category: 'FX', bpm: 126, key: 'G min', tone: 'riser', brightness: 0.92, decay: 1.20 },
+      { name: 'WF_FX_GlitchBit_Dmin.wav', category: 'FX', bpm: 150, key: 'D min', tone: 'zap', brightness: 0.82, decay: 0.55 },
+      { name: 'WF_FX_Downlifter_Emin.wav', category: 'FX', bpm: 128, key: 'E min', tone: 'down', brightness: 0.70, decay: 1.30 },
+      { name: 'WF_FX_SpaceSweep_F#maj.wav', category: 'FX', bpm: 120, key: 'F# maj', tone: 'riser', brightness: 0.78, decay: 1.40 },
+    ];
+
+    // ==================== 3. APPLICATION STATE ====================
+    const state = {
+      samples: [],
+      filteredSamples: [],
+      activeSampleId: null,
+      selectedIds: new Set(),
+      activeCategory: 'ALL',
+      searchQuery: '',
+      keyFilter: 'ALL',
+      bpmMin: 70,
+      bpmMax: 175,
+      folderModeOpen: false,
+      folderSchema: 'cat_key_bpm',
+      interactionMode: 'audition', // 'audition' | 'lasso'
+      hoverAudition: true,
+      hoveredSampleId: null,
+      pitchSemitones: 0,
+      playbackRate: 1.0,
+      // 2D Map Camera & Lasso
+      camera: { x: 0, y: 0, zoom: 1 },
+      isPanning: false,
+      panStart: { x: 0, y: 0 },
+      isLassoing: false,
+      lassoPoints: [],
+      // Audio playback state
+      audioCtx: null,
+      activeSource: null,
+      playStartTime: 0,
+      playDuration: 0,
+      isPlaying: false,
+      // SQLite-backed History Log
+      exportLogs: []
+    };
+
+    // ==================== 4. TAURI SQLITE DATABASE LAYER ====================
+    async function initSqliteDatabase() {
+      if (!isTauri || !window.__TAURI__?.sql) return null;
+      try {
+        sqliteDb = await window.__TAURI__.sql.load('sqlite:wavie_fresh.db');
+        // Ensure tables exist even if migration hasn't run
+        await sqliteDb.execute(`
+          CREATE TABLE IF NOT EXISTS samples (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            file_path TEXT NOT NULL UNIQUE,
+            category TEXT NOT NULL,
+            musical_key TEXT,
+            bpm REAL,
+            duration_sec REAL,
+            map_x REAL NOT NULL,
+            map_y REAL NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+        await sqliteDb.execute(`
+          CREATE TABLE IF NOT EXISTS sync_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            destination TEXT NOT NULL,
+            sample_count INTEGER NOT NULL,
+            folder_structure TEXT NOT NULL,
+            status TEXT NOT NULL,
+            synced_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+        return sqliteDb;
+      } catch (err) {
+        console.warn('SQLite initialization warning:', err);
+        sqliteDb = null;
+        return null;
+      }
+    }
+
+    async function persistSampleToSqlite(sample) {
+      if (!sqliteDb) return;
+      try {
+        await sqliteDb.execute(
+          `INSERT OR REPLACE INTO samples (id, name, file_path, category, musical_key, bpm, duration_sec, map_x, map_y)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [
+            sample.id,
+            sample.name,
+            sample.filePath || `virtual://${sample.category}/${sample.name}`,
+            sample.category,
+            sample.key,
+            sample.bpm,
+            sample.duration || 0.5,
+            sample.x,
+            sample.y
+          ]
+        );
+      } catch (err) {
+        console.warn('Failed to persist sample to SQLite:', err);
+      }
+    }
+
+    async function persistSyncLogToSqlite(dest, count, rule, status) {
+      if (!sqliteDb) return;
+      try {
+        await sqliteDb.execute(
+          `INSERT INTO sync_history (destination, sample_count, folder_structure, status)
+           VALUES ($1, $2, $3, $4)`,
+          [dest, count, rule, status]
+        );
+      } catch (err) {
+        console.warn('Failed to persist sync log to SQLite:', err);
+      }
+    }
+
+    async function loadSyncHistoryFromSqlite() {
+      if (!sqliteDb) {
+        state.exportLogs = [
+          {
+            id: 102,
+            time: '22:41:08',
+            dest: 'Local Storage',
+            rule: 'Category/Key/Sample.wav',
+            count: 6,
+            status: 'COMMITTED'
+          },
+          {
+            id: 101,
+            time: '22:18:45',
+            dest: 'Dropbox',
+            rule: 'BPM_Range/Category/Sample.wav',
+            count: 12,
+            status: 'SYNCED'
+          }
+        ];
+        return;
+      }
+      try {
+        const rows = await sqliteDb.select(
+          'SELECT id, destination, sample_count, folder_structure, status, synced_at FROM sync_history ORDER BY id DESC LIMIT 40'
+        );
+        state.exportLogs = rows.map(r => ({
+          id: r.id,
+          time: (r.synced_at || '').split(' ').pop() || 'SYNCED',
+          dest: r.destination,
+          rule: r.folder_structure,
+          count: r.sample_count,
+          status: r.status
+        }));
+      } catch (err) {
+        console.warn('Could not read sync_history:', err);
+      }
+    }
+
+    // ==================== 5. WEB AUDIO ENGINE & PITCH/TEMPO WAV RENDERER ====================
+    function getAudioContext() {
+      if (!state.audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        state.audioCtx = new AudioContextClass();
+      }
+      if (state.audioCtx.state === 'suspended') {
+        state.audioCtx.resume();
+      }
+      return state.audioCtx;
+    }
+
+    /**
+     * Encodes an AudioBuffer into raw 16-bit PCM .WAV Uint8Array bytes
+     */
+    function encodeWavBytes(audioBuffer) {
+      const sampleRate = audioBuffer.sampleRate;
+      const format = 1; // PCM
+      const bitDepth = 16;
+      const samples = audioBuffer.getChannelData(0);
+      const dataLength = samples.length * (bitDepth / 8);
+      const buffer = new ArrayBuffer(44 + dataLength);
+      const view = new DataView(buffer);
+
+      const writeString = (offset, string) => {
+        for (let i = 0; i < string.length; i++) {
+          view.setUint8(offset + i, string.charCodeAt(i));
+        }
+      };
+
+      writeString(0, 'RIFF');
+      view.setUint32(4, 36 + dataLength, true);
+      writeString(8, 'WAVE');
+      writeString(12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, format, true);
+      view.setUint16(22, 1, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * 2, true);
+      view.setUint16(32, 2, true);
+      view.setUint16(34, bitDepth, true);
+      writeString(36, 'data');
+      view.setUint32(40, dataLength, true);
+
+      let offset = 44;
+      for (let i = 0; i < samples.length; i++, offset += 2) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      }
+
+      return new Uint8Array(buffer);
+    }
+
+    function audioBufferToWavBlob(audioBuffer) {
+      const bytes = encodeWavBytes(audioBuffer);
+      return new Blob([bytes], { type: 'audio/wav' });
+    }
+
+    /**
+     * Renders an AudioBuffer with the current Pitch (semitones) & Rate/Tempo applied
+     * using OfflineAudioContext so exported/dragged WAVs reflect DSP changes!
+     */
+    async function renderProcessedBuffer(sample) {
+      if (!sample || !sample.buffer) return null;
+      const pitch = state.pitchSemitones;
+      const rate = state.playbackRate;
+      if (pitch === 0 && Math.abs(rate - 1.0) < 0.001) {
+        return sample.buffer;
+      }
+      const effectiveRate = Math.max(0.15, rate * Math.pow(2, pitch / 12));
+      const newLength = Math.max(128, Math.ceil(sample.buffer.length / effectiveRate));
+      const offline = new OfflineAudioContext(1, newLength, sample.buffer.sampleRate);
+      const src = offline.createBufferSource();
+      src.buffer = sample.buffer;
+      src.playbackRate.value = rate;
+      if (src.detune) src.detune.value = pitch * 100;
+      src.connect(offline.destination);
+      src.start(0);
+      return await offline.startRendering();
+    }
+
+    /**
+     * Plays a sample with real-time Pitch (detune in cents) & Tempo/Rate scaling.
+     * In Tauri mode, lazily decodes audio from `sample.filePath` if buffer isn't cached yet.
+     */
+    async function playSample(sample) {
+      if (!sample) return;
+      const ctx = getAudioContext();
+
+      // Lazy-load audio buffer from native filePath if loaded from SQLite
+      if (!sample.buffer && sample.filePath && isTauri && window.__TAURI__?.fs) {
+        try {
+          const rawBytes = await window.__TAURI__.fs.readFile(sample.filePath);
+          const arrayBuf = rawBytes.buffer.slice(rawBytes.byteOffset, rawBytes.byteOffset + rawBytes.byteLength);
+          sample.buffer = await ctx.decodeAudioData(arrayBuf);
+          sample.peaks = extractWaveformPeaks(sample.buffer, 100);
+          sample.duration = sample.buffer.duration;
+          updateInspectorDeck();
+        } catch (err) {
+          console.warn('Lazy disk decode fallback:', err);
+        }
+      }
+
+      if (!sample.buffer) return;
+
+      if (state.activeSource) {
+        try { state.activeSource.stop(); } catch (e) {}
+      }
+
+      const source = ctx.createBufferSource();
+      source.buffer = sample.buffer;
+      source.playbackRate.value = state.playbackRate;
+      if (source.detune) {
+        source.detune.value = state.pitchSemitones * 100;
+      }
+
+      source.connect(ctx.destination);
+      source.start(0);
+
+      state.activeSource = source;
+      state.playStartTime = ctx.currentTime;
+      const effectiveRate = state.playbackRate * Math.pow(2, state.pitchSemitones / 12);
+      state.playDuration = sample.buffer.duration / Math.max(0.1, effectiveRate);
+      state.isPlaying = true;
+
+      source.onended = () => {
+        if (state.activeSource === source) {
+          state.isPlaying = false;
+        }
+      };
+    }
+
+    /**
+     * Synthesizes a realistic studio WAV AudioBuffer for each seed sample
+     */
+    async function synthesizeSampleBuffer(seed, index = 0) {
+      const ctx = getAudioContext();
+      const sampleRate = ctx.sampleRate;
+      const duration = Math.max(0.14, Math.min(2.0, seed.decay || 0.6));
+      const length = Math.floor(sampleRate * duration);
+      const buffer = ctx.createBuffer(1, length, sampleRate);
+      const data = buffer.getChannelData(0);
+      const baseFreq = NOTE_FREQS[seed.key] || 65.41;
+
+      for (let i = 0; i < length; i++) {
+        const t = i / sampleRate;
+        const env = Math.exp(-t * (4.5 / duration));
+        const noise = (Math.random() * 2 - 1);
+        let sample = 0;
+
+        if (seed.category === 'Kicks') {
+          const pitchEnv = baseFreq * (1 + 4.2 * Math.exp(-t * 36));
+          sample = Math.sin(2 * Math.PI * pitchEnv * t) * Math.exp(-t * 6.5) * 0.92;
+          if (t < 0.015) sample += noise * (1 - t / 0.015) * 0.25;
+        } else if (seed.category === 'Bass') {
+          const saw = 2 * ((t * baseFreq) % 1) - 1;
+          const sub = Math.sin(2 * Math.PI * baseFreq * t);
+          sample = (sub * 0.65 + saw * 0.35 * (seed.brightness || 0.5)) * env * 0.85;
+        } else if (seed.category === 'Snares') {
+          const body = Math.sin(2 * Math.PI * 185 * Math.exp(-t * 14) * t) * Math.exp(-t * 16);
+          const snap = noise * Math.exp(-t * 11) * 0.75;
+          sample = (body * 0.55 + snap) * 0.85;
+        } else if (seed.category === 'Hi-Hats') {
+          const highNoise = noise - (i > 0 ? data[i - 1] * 0.6 : 0);
+          sample = highNoise * Math.exp(-t * (18 / duration)) * 0.55;
+        } else if (seed.category === 'Synths') {
+          const f1 = baseFreq * 4;
+          const f2 = f1 * 1.5;
+          const osc = Math.sin(2 * Math.PI * f1 * t) * 0.55 + Math.sin(2 * Math.PI * f2 * t) * 0.35;
+          sample = osc * env * 0.75;
+        } else if (seed.category === 'Pads') {
+          const attack = Math.min(1, t / 0.22);
+          const f1 = baseFreq * 2;
+          const f2 = baseFreq * 3;
+          const chord = Math.sin(2 * Math.PI * f1 * t) * 0.45 + Math.sin(2 * Math.PI * f2 * t + 0.4) * 0.35;
+          sample = chord * attack * Math.exp(-t * 1.4) * 0.7;
+        } else {
+          // FX
+          const sweepFreq = 120 + (t / duration) * 1800 * (seed.tone === 'down' ? -0.8 : 1);
+          sample = (Math.sin(2 * Math.PI * Math.max(40, sweepFreq) * t) * 0.4 + noise * 0.35) * env * 0.75;
+        }
+
+        data[i] = Math.max(-0.98, Math.min(0.98, sample));
+      }
+      return buffer;
+    }
+
+    /**
+     * Extracts normalized peak amplitudes for the bottom waveform visualizer
+     */
+    function extractWaveformPeaks(audioBuffer, barCount = 100) {
+      const data = audioBuffer.getChannelData(0);
+      const blockSize = Math.max(1, Math.floor(data.length / barCount));
+      const peaks = [];
+      let maxPeak = 0.001;
+
+      for (let i = 0; i < barCount; i++) {
+        const start = i * blockSize;
+        let peak = 0;
+        for (let j = 0; j < blockSize && start + j < data.length; j++) {
+          const abs = Math.abs(data[start + j]);
+          if (abs > peak) peak = abs;
+        }
+        peaks.push(peak);
+        if (peak > maxPeak) maxPeak = peak;
+      }
+      return peaks.map(p => p / maxPeak);
+    }
+
+    // ==================== 6. AUDIO FEATURE HEURISTICS & LIBRARY INITIALIZATION ====================
+    function classifyAudioMetadata(filename, audioBuffer = null, index = 0) {
+      const lower = filename.toLowerCase();
+      let category = 'Synths';
+      if (lower.includes('kick') || lower.includes('bd_') || lower.includes('808kick')) category = 'Kicks';
+      else if (lower.includes('snare') || lower.includes('clap') || lower.includes('rim') || lower.includes('sd_')) category = 'Snares';
+      else if (lower.includes('hat') || lower.includes('hh_') || lower.includes('cym') || lower.includes('ride') || lower.includes('shaker')) category = 'Hi-Hats';
+      else if (lower.includes('bass') || lower.includes('808') || lower.includes('sub') || lower.includes('reese')) category = 'Bass';
+      else if (lower.includes('pad') || lower.includes('atmos') || lower.includes('drone') || lower.includes('string')) category = 'Pads';
+      else if (lower.includes('fx') || lower.includes('riser') || lower.includes('sweep') || lower.includes('impact') || lower.includes('zap')) category = 'FX';
+
+      // Extract BPM if present in filename (e.g. _128_ or 140bpm)
+      const bpmMatch = lower.match(/(?:^|[_\-\s])(7\d|8\d|9\d|1[0-7]\d)(?:bpm|[_\-\s\.]|$)/);
+      const bpm = bpmMatch ? parseInt(bpmMatch[1], 10) : 128;
+
+      // Extract Musical Key if present
+      const keyPatterns = [
+        { re: /f#\s*maj|f#maj/i, key: 'F# maj' },
+        { re: /a#\s*min|a#min|bbmin/i, key: 'A# min' },
+        { re: /c\s*min|cmin/i, key: 'C min' },
+        { re: /d\s*min|dmin/i, key: 'D min' },
+        { re: /e\s*min|emin/i, key: 'E min' },
+        { re: /f\s*min|fmin/i, key: 'F min' },
+        { re: /g\s*min|gmin/i, key: 'G min' },
+        { re: /a\s*min|amin/i, key: 'A min' },
+      ];
+      let key = 'C min';
+      for (const kp of keyPatterns) {
+        if (kp.re.test(lower)) {
+          key = kp.key;
+          break;
+        }
+      }
+
+      // Compute spectral zero-crossing brightness & RMS weight from AudioBuffer if available
+      let brightnessOffset = 0;
+      let weightOffset = 0;
+      if (audioBuffer) {
+        const data = audioBuffer.getChannelData(0);
+        let zcr = 0;
+        let rms = 0;
+        const step = Math.max(1, Math.floor(data.length / 8000));
+        let count = 0;
+        for (let i = step; i < data.length; i += step) {
+          if ((data[i] >= 0 && data[i - step] < 0) || (data[i] < 0 && data[i - step] >= 0)) zcr++;
+          rms += data[i] * data[i];
+          count++;
+        }
+        const zcrRatio = count > 0 ? zcr / count : 0.2;
+        const rmsVal = count > 0 ? Math.sqrt(rms / count) : 0.2;
+        brightnessOffset = (zcrRatio - 0.2) * 0.18;
+        weightOffset = (rmsVal - 0.25) * 0.16;
+      }
+
+      const cluster = CATEGORIES[category].cluster;
+      const angle = ((index + filename.length) * 2.39996) % (Math.PI * 2);
+      const radius = 0.04 + ((index % 6) / 6) * 0.085;
+      const x = Math.min(0.94, Math.max(0.06, cluster.x + Math.cos(angle) * radius + brightnessOffset));
+      const y = Math.min(0.94, Math.max(0.06, cluster.y + Math.sin(angle) * radius + weightOffset));
+
+      return { category, bpm, key, x, y };
+    }
+
+    async function initializeSamples() {
+      await initSqliteDatabase();
+      await loadSyncHistoryFromSqlite();
+
+      // Check if SQLite already has persisted samples
+      if (sqliteDb) {
+        try {
+          const savedRows = await sqliteDb.select(
+            'SELECT id, name, file_path, category, musical_key, bpm, duration_sec, map_x, map_y FROM samples ORDER BY created_at DESC'
+          );
+          if (savedRows && savedRows.length > 0) {
+            state.samples = savedRows.map((row, idx) => ({
+              id: row.id,
+              dbId: idx + 1,
+              name: row.name,
+              filePath: row.file_path,
+              category: CATEGORIES[row.category] ? row.category : 'Synths',
+              bpm: Number(row.bpm) || 128,
+              key: row.musical_key || 'C min',
+              duration: Number(row.duration_sec) || 0.65,
+              x: Number(row.map_x),
+              y: Number(row.map_y),
+              buffer: null,
+              peaks: null,
+              isUserUploaded: true
+            }));
+
+            // Pre-synthesize fallback waveforms for built-in virtual paths
+            for (let i = 0; i < state.samples.length; i++) {
+              const s = state.samples[i];
+              if (s.filePath && s.filePath.startsWith('virtual://')) {
+                const seed = RAW_SAMPLES.find(r => r.name === s.name) || { category: s.category, key: s.key, tone: 'sub', brightness: 0.5, decay: s.duration };
+                s.buffer = await synthesizeSampleBuffer(seed, i);
+                s.peaks = extractWaveformPeaks(s.buffer, 100);
+              }
+            }
+
+            state.activeSampleId = state.samples[0].id;
+            state.selectedIds.add(state.samples[0].id);
+
+            applyFilters();
+            renderCategoryPills();
+            updateInspectorDeck();
+            renderSelectedBatchList();
+            renderHistoryLog();
+            renderFolderTree();
+            showToast(`Loaded ${state.samples.length} samples from SQLite`, 'emerald');
+            return;
+          }
+        } catch (err) {
+          console.warn('Error querying SQLite samples:', err);
+        }
+      }
+
+      // Seed built-in demo library (and save to SQLite if running in Tauri)
+      const generated = [];
+      for (let i = 0; i < RAW_SAMPLES.length; i++) {
+        const item = RAW_SAMPLES[i];
+        const cluster = CATEGORIES[item.category].cluster;
+        const angle = (i * 2.39996) % (Math.PI * 2);
+        const radius = 0.045 + ((i % 7) / 7) * 0.095;
+        const x = Math.min(0.94, Math.max(0.06, cluster.x + Math.cos(angle) * radius + (item.brightness - 0.5) * 0.08));
+        const y = Math.min(0.94, Math.max(0.06, cluster.y + Math.sin(angle) * radius + (item.decay - 0.7) * 0.06));
+
+        const buffer = await synthesizeSampleBuffer(item, i);
+        const peaks = extractWaveformPeaks(buffer, 100);
+
+        const sampleObj = {
+          id: `wf_${String(i + 1).padStart(3, '0')}`,
+          dbId: i + 1,
+          name: item.name,
+          filePath: `virtual://${item.category}/${item.name}`,
+          category: item.category,
+          bpm: item.bpm,
+          key: item.key,
+          duration: buffer.duration,
+          x,
+          y,
+          buffer,
+          peaks,
+          isUserUploaded: false
+        };
+
+        generated.push(sampleObj);
+        if (sqliteDb) {
+          await persistSampleToSqlite(sampleObj);
+        }
+      }
+
+      state.samples = generated;
+      state.activeSampleId = generated[0].id;
+      state.selectedIds.add(generated[0].id);
+
+      applyFilters();
+      renderCategoryPills();
+      updateInspectorDeck();
+      renderSelectedBatchList();
+      renderHistoryLog();
+      renderFolderTree();
+    }
+
+    // ==================== 7. VIRTUAL FOLDER PATH GENERATOR ====================
+    function getVirtualPath(sample, schema = state.folderSchema) {
+      const bpmBucket = `${Math.floor(sample.bpm / 10) * 10}-${Math.floor(sample.bpm / 10) * 10 + 9} BPM`;
+      if (schema === 'cat_key_bpm') return `/${sample.category}/${sample.key}/${sample.bpm} BPM/`;
+      if (schema === 'bpm_cat_key') return `/${bpmBucket}/${sample.category}/${sample.key}/`;
+      if (schema === 'key_cat') return `/${sample.key}/${sample.category}/`;
+      return `/${sample.category}/`;
+    }
+
+    function getExportFilePath(sample, rule) {
+      const bpmRange = `${Math.floor(sample.bpm / 10) * 10}-${Math.floor(sample.bpm / 10) * 10 + 9}BPM`;
+      if (rule === 'Category/Key/Sample.wav') return `${sample.category}/${sample.key.replace(' ', '')}/${sample.name}`;
+      if (rule === 'BPM_Range/Category/Sample.wav') return `${bpmRange}/${sample.category}/${sample.name}`;
+      if (rule === 'Key/Category_BPM/Sample.wav') return `${sample.key.replace(' ', '')}/${sample.category}_${sample.bpm}/${sample.name}`;
+      return `WavieFresh_Pack/${sample.name}`;
+    }
+
+    // ==================== 7. FILTERING & UI RENDERING ====================
+    function applyFilters() {
+      const q = state.searchQuery.trim().toLowerCase();
+      state.filteredSamples = state.samples.filter(s => {
+        if (state.activeCategory !== 'ALL' && s.category !== state.activeCategory) return false;
+        if (state.keyFilter !== 'ALL' && s.key !== state.keyFilter) return false;
+        if (s.bpm < state.bpmMin || s.bpm > state.bpmMax) return false;
+        if (q) {
+          const hay = `${s.name} ${s.category} ${s.key} ${s.bpm}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+
+      document.getElementById('visibleCountBadge').textContent =
+        `${state.filteredSamples.length} / ${state.samples.length} Samples`;
+
+      if (state.folderModeOpen) renderFolderTree();
+    }
+
+    function renderCategoryPills() {
+      const container = document.getElementById('categoryPills');
+      const allCount = state.samples.length;
+      let html = `
+        <button data-cat="ALL" class="cat-pill px-2.5 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
+          state.activeCategory === 'ALL'
+            ? 'bg-slate-100 text-obsidian-950 shadow'
+            : 'bg-obsidian-800 text-slate-300 hover:bg-obsidian-750 border border-obsidian-700'
+        }">
+          <span>All</span>
+          <span class="font-mono text-[10px] opacity-75">${allCount}</span>
+        </button>
+      `;
+
+      Object.entries(CATEGORIES).forEach(([cat, meta]) => {
+        const count = state.samples.filter(s => s.category === cat).length;
+        const active = state.activeCategory === cat;
+        html += `
+          <button data-cat="${cat}" class="cat-pill px-2.5 py-1 rounded-lg text-xs font-medium transition flex items-center gap-1.5 border ${
+            active
+              ? 'text-white shadow-md'
+              : 'bg-obsidian-850/90 text-slate-300 hover:bg-obsidian-800 border-obsidian-700/80'
+          }" style="${active ? `background:${meta.bg}; border-color:${meta.color};` : ''}">
+            <span class="w-2 h-2 rounded-full" style="background:${meta.color}"></span>
+            <span>${cat}</span>
+            <span class="font-mono text-[10px] text-slate-400">${count}</span>
+          </button>
+        `;
+      });
+
+      container.innerHTML = html;
+      container.querySelectorAll('.cat-pill').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.activeCategory = btn.dataset.cat;
+          renderCategoryPills();
+          applyFilters();
+        });
+      });
+    }
+
+    function updateInspectorDeck() {
+      const sample = state.samples.find(s => s.id === state.activeSampleId);
+      if (!sample) return;
+
+      const catMeta = CATEGORIES[sample.category] || CATEGORIES['Synths'];
+      const badge = document.getElementById('deckCategoryBadge');
+      badge.textContent = sample.category.toUpperCase();
+      badge.style.color = catMeta.color;
+      badge.style.backgroundColor = catMeta.bg;
+      badge.style.borderColor = catMeta.border;
+
+      document.getElementById('deckDbId').textContent = `SQLite #${String(sample.dbId).padStart(3, '0')}`;
+      document.getElementById('deckSampleName').textContent = sample.name;
+      document.getElementById('deckBpm').textContent = `${sample.bpm} BPM`;
+      document.getElementById('deckKey').textContent = sample.key;
+      document.getElementById('deckDuration').textContent = `${sample.duration.toFixed(2)}s`;
+
+      const vPath = getVirtualPath(sample);
+      document.getElementById('deckVirtualFolder').textContent = vPath;
+      document.getElementById('activeVirtualPathDisplay').textContent = vPath;
+    }
+
+    function selectActiveSample(sampleId, shouldPlay = true, addToBatch = false) {
+      const sample = state.samples.find(s => s.id === sampleId);
+      if (!sample) return;
+
+      state.activeSampleId = sampleId;
+      if (!addToBatch) {
+        state.selectedIds.clear();
+      }
+      state.selectedIds.add(sampleId);
+
+      updateInspectorDeck();
+      renderSelectedBatchList();
+      if (shouldPlay) playSample(sample);
+    }
+
+    // ==================== 8. VIRTUAL AUTO-ORGANIZE FOLDER TREE ====================
+    function renderFolderTree() {
+      const container = document.getElementById('folderTreeContainer');
+      const tree = {};
+
+      state.filteredSamples.forEach(s => {
+        const path = getVirtualPath(s);
+        if (!tree[path]) tree[path] = [];
+        tree[path].push(s);
+      });
+
+      const paths = Object.keys(tree).sort();
+      if (paths.length === 0) {
+        container.innerHTML = `<div class="text-slate-500 text-center py-6 font-mono text-[11px]">No matching folders</div>`;
+        return;
+      }
+
+      container.innerHTML = paths.map(path => {
+        const items = tree[path];
+        const isCurrentFolder = items.some(i => i.id === state.activeSampleId);
+        return `
+          <div class="rounded-lg border ${isCurrentFolder ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-obsidian-800 bg-obsidian-850/60'} overflow-hidden">
+            <div class="px-2.5 py-1.5 flex items-center justify-between text-[11px] font-mono text-slate-300">
+              <span class="flex items-center gap-1.5 truncate">
+                <i data-lucide="folder" class="w-3.5 h-3.5 text-emerald-400 shrink-0"></i>
+                <span class="truncate">${path}</span>
+              </span>
+              <span class="text-[10px] px-1.5 rounded bg-obsidian-800 text-slate-400">${items.length}</span>
+            </div>
+            <div class="px-2 pb-1.5 space-y-0.5">
+              ${items.map(s => `
+                <button
+                  data-sample-id="${s.id}"
+                  class="tree-sample-btn w-full text-left px-2 py-1 rounded text-[11px] flex items-center justify-between gap-1 transition ${
+                    s.id === state.activeSampleId
+                      ? 'bg-cyan-500/20 text-cyan-200 font-semibold'
+                      : 'text-slate-400 hover:bg-obsidian-800 hover:text-slate-200'
+                  }"
+                >
+                  <span class="truncate">${s.name}</span>
+                  <span class="text-[10px] font-mono opacity-70 shrink-0">${s.bpm}</span>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+      container.querySelectorAll('.tree-sample-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          selectActiveSample(btn.dataset.sampleId, true, false);
+        });
+      });
+    }
+
+    // ==================== 9. BATCH SELECTION QUEUE & HISTORY LOG ====================
+    function renderSelectedBatchList() {
+      const listEl = document.getElementById('selectedSamplesList');
+      const selectedArray = state.samples.filter(s => state.selectedIds.has(s.id));
+      document.getElementById('selectedCountBadge').textContent = `${selectedArray.length} Selected`;
+
+      if (selectedArray.length === 0) {
+        listEl.innerHTML = `
+          <div class="h-full flex flex-col items-center justify-center text-center p-4 text-slate-500">
+            <i data-lucide="lasso" class="w-6 h-6 mb-1.5 opacity-50"></i>
+            <p class="text-xs">Click any dot or use <span class="text-amber-400">Lasso Select</span> on the 2D map to batch-select WAVs.</p>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      listEl.innerHTML = selectedArray.map(s => {
+        const meta = CATEGORIES[s.category] || CATEGORIES['Synths'];
+        const isActive = s.id === state.activeSampleId;
+        return `
+          <div
+            draggable="true"
+            data-sample-id="${s.id}"
+            class="batch-item group flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl border transition cursor-pointer ${
+              isActive
+                ? 'bg-obsidian-800 border-cyan-400/60 shadow-sm'
+                : 'bg-obsidian-850/90 border-obsidian-800 hover:border-obsidian-600'
+            }"
+          >
+            <div class="flex items-center gap-2 min-w-0 flex-1">
+              <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${meta.color}"></span>
+              <div class="min-w-0 flex-1">
+                <div class="text-xs font-medium text-slate-100 truncate">${s.name}</div>
+                <div class="text-[10px] font-mono text-slate-400">${s.category} • ${s.key} • ${s.bpm} BPM</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <button data-play-id="${s.id}" class="batch-play-btn p-1 rounded-lg hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-300 transition" title="Audition">
+                <i data-lucide="volume-2" class="w-3.5 h-3.5"></i>
+              </button>
+              <button data-remove-id="${s.id}" class="batch-remove-btn p-1 rounded-lg hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 transition" title="Remove from batch">
+                <i data-lucide="x" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+
+      listEl.querySelectorAll('.batch-item').forEach(el => {
+        el.addEventListener('click', (e) => {
+          if (e.target.closest('button')) return;
+          const id = el.dataset.sampleId;
+          state.activeSampleId = id;
+          updateInspectorDeck();
+          renderSelectedBatchList();
+        });
+      });
+
+      listEl.querySelectorAll('.batch-play-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const sample = state.samples.find(s => s.id === btn.dataset.playId);
+          if (sample) {
+            state.activeSampleId = sample.id;
+            updateInspectorDeck();
+            renderSelectedBatchList();
+            playSample(sample);
+          }
+        });
+      });
+
+      listEl.querySelectorAll('.batch-remove-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          state.selectedIds.delete(btn.dataset.removeId);
+          renderSelectedBatchList();
+        });
+      });
+    }
+
+    function renderHistoryLog() {
+      const container = document.getElementById('historyLogContainer');
+      document.getElementById('logCountBadge').textContent = `${state.exportLogs.length} entries`;
+
+      if (state.exportLogs.length === 0) {
+        container.innerHTML = `<div class="text-slate-600 text-center py-4">No sync or export history recorded yet.</div>`;
+        return;
+      }
+
+      container.innerHTML = state.exportLogs.map(log => `
+        <div class="px-2 py-1.5 rounded-lg bg-obsidian-900/90 border border-obsidian-800/90 flex items-center justify-between gap-2">
+          <div class="min-w-0">
+            <div class="text-slate-200 truncate">
+              <span class="text-emerald-400 font-semibold">${log.dest}</span>
+              <span class="text-slate-500">• ${log.count} WAVs</span>
+            </div>
+            <div class="text-[10px] text-slate-500 truncate">${log.rule}</div>
+          </div>
+          <div class="text-right shrink-0">
+            <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">${log.status}</span>
+            <div class="text-[9px] text-slate-500 mt-0.5">${log.time}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // ==================== 10. BATCH EXPORT & REAL WAV FILE DOWNLOAD / TAURI DISK WRITE ====================
+    function triggerBrowserDownload(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    }
+
+    async function executeBatchExport(destination) {
+      const selectedArray = state.samples.filter(s => state.selectedIds.has(s.id));
+      if (selectedArray.length === 0) {
+        showToast('Select at least one sample on the map first.', 'amber');
+        return;
+      }
+
+      const rule = document.getElementById('exportRuleSelect').value;
+      const progressBox = document.getElementById('syncProgressBox');
+      const progressBar = document.getElementById('syncProgressBar');
+      const statusText = document.getElementById('syncStatusText');
+      const percentText = document.getElementById('syncPercentText');
+
+      // In Tauri Desktop mode, prompt for target root directory when exporting to Local Storage
+      let tauriTargetDir = null;
+      if (destination === 'Local Storage' && isTauri && window.__TAURI__?.dialog && window.__TAURI__?.fs) {
+        try {
+          tauriTargetDir = await window.__TAURI__.dialog.open({
+            directory: true,
+            multiple: false,
+            title: 'Choose Destination Folder for Organized WAV Pack'
+          });
+          if (!tauriTargetDir) return; // User cancelled folder picker
+        } catch (err) {
+          console.warn('Tauri directory dialog error:', err);
+        }
+      }
+
+      progressBox.classList.remove('hidden');
+
+      for (let i = 0; i < selectedArray.length; i++) {
+        const sample = selectedArray[i];
+        const pct = Math.round(((i + 1) / selectedArray.length) * 100);
+        const targetPath = getExportFilePath(sample, rule);
+
+        statusText.innerHTML = `<i data-lucide="refresh-cw" class="w-3 h-3 animate-spin"></i> ${destination}: ${targetPath}`;
+        percentText.textContent = `${pct}%`;
+        progressBar.style.width = `${pct}%`;
+        lucide.createIcons();
+
+        // Ensure buffer is decoded if loaded lazily from SQLite
+        if (!sample.buffer && sample.filePath && isTauri && window.__TAURI__?.fs) {
+          try {
+            const raw = await window.__TAURI__.fs.readFile(sample.filePath);
+            const ab = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength);
+            sample.buffer = await getAudioContext().decodeAudioData(ab);
+          } catch (e) {}
+        }
+
+        if (destination === 'Local Storage' && sample.buffer) {
+          const processedBuf = await renderProcessedBuffer(sample);
+          const wavBytes = encodeWavBytes(processedBuf);
+
+          if (tauriTargetDir && window.__TAURI__?.fs) {
+            // Native Tauri FS write: create organized subdirectories and write .wav file
+            const sep = tauriTargetDir.includes('\\') ? '\\' : '/';
+            const parts = targetPath.split('/');
+            const fileName = parts.pop();
+            const subDir = [tauriTargetDir, ...parts].join(sep);
+            await window.__TAURI__.fs.mkdir(subDir, { recursive: true });
+            await window.__TAURI__.fs.writeFile(`${subDir}${sep}${fileName}`, wavBytes);
+          } else if (i < 6) {
+            // Browser download fallback
+            const wavBlob = new Blob([wavBytes], { type: 'audio/wav' });
+            const organizedFilename = targetPath.replace(/\//g, '__');
+            triggerBrowserDownload(wavBlob, organizedFilename);
+          }
+        }
+
+        await new Promise(r => setTimeout(r, Math.min(220, 650 / selectedArray.length)));
+      }
+
+      const now = new Date();
+      const timeStr = now.toTimeString().split(' ')[0];
+      const finalStatus = destination === 'Local Storage' ? 'EXPORTED' : 'SYNCED';
+
+      state.exportLogs.unshift({
+        id: Date.now(),
+        time: timeStr,
+        dest: destination,
+        rule,
+        count: selectedArray.length,
+        status: finalStatus
+      });
+
+      await persistSyncLogToSqlite(destination, selectedArray.length, rule, finalStatus);
+      renderHistoryLog();
+      showToast(`Exported ${selectedArray.length} WAVs to ${destination} (${rule})`, 'emerald');
+
+      setTimeout(() => {
+        progressBox.classList.add('hidden');
+        progressBar.style.width = '0%';
+      }, 1600);
+    }
+
+    // ==================== 11. INTERACTIVE 2D SIMILARITY MAP CANVAS ====================
+    const mapCanvas = document.getElementById('similarityCanvas');
+    const mapCtx = mapCanvas.getContext('2d');
+
+    function worldToScreen(wx, wy, width, height) {
+      const padding = 48;
+      const usableW = width - padding * 2;
+      const usableH = height - padding * 2;
+      const cx = width / 2;
+      const cy = height / 2;
+
+      const baseX = padding + wx * usableW;
+      const baseY = padding + wy * usableH;
+
+      const sx = cx + (baseX - cx) * state.camera.zoom + state.camera.x;
+      const sy = cy + (baseY - cy) * state.camera.zoom + state.camera.y;
+      return { x: sx, y: sy };
+    }
+
+    function screenToWorld(sx, sy, width, height) {
+      const padding = 48;
+      const usableW = width - padding * 2;
+      const usableH = height - padding * 2;
+      const cx = width / 2;
+      const cy = height / 2;
+
+      const baseX = (sx - state.camera.x - cx) / state.camera.zoom + cx;
+      const baseY = (sy - state.camera.y - cy) / state.camera.zoom + cy;
+
+      return {
+        x: (baseX - padding) / usableW,
+        y: (baseY - padding) / usableH
+      };
+    }
+
+    function pointInPolygon(point, polygon) {
+      let inside = false;
+      for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = polygon[i].x, yi = polygon[i].y;
+        const xj = polygon[j].x, yj = polygon[j].y;
+        const intersect = ((yi > point.y) !== (yj > point.y)) &&
+          (point.x < (xj - xi) * (point.y - yi) / (yj - yi + 0.000001) + xi);
+        if (intersect) inside = !inside;
+      }
+      return inside;
+    }
+
+    function renderSimilarityMap() {
+      const rect = mapCanvas.parentElement.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      if (mapCanvas.width !== Math.floor(rect.width * dpr) || mapCanvas.height !== Math.floor(rect.height * dpr)) {
+        mapCanvas.width = Math.floor(rect.width * dpr);
+        mapCanvas.height = Math.floor(rect.height * dpr);
+      }
+
+      const w = rect.width;
+      const h = rect.height;
+      mapCtx.save();
+      mapCtx.scale(dpr, dpr);
+
+      // Background Radial Studio Glow
+      const bgGrad = mapCtx.createRadialGradient(w * 0.5, h * 0.5, 40, w * 0.5, h * 0.5, Math.max(w, h) * 0.75);
+      bgGrad.addColorStop(0, '#0f1624');
+      bgGrad.addColorStop(1, '#07090e');
+      mapCtx.fillStyle = bgGrad;
+      mapCtx.fillRect(0, 0, w, h);
+
+      // Subtle Cartesian Coordinate Grid
+      mapCtx.strokeStyle = 'rgba(38, 49, 71, 0.35)';
+      mapCtx.lineWidth = 1;
+      const gridSteps = 10;
+      for (let i = 0; i <= gridSteps; i++) {
+        const p1 = worldToScreen(i / gridSteps, 0, w, h);
+        const p2 = worldToScreen(i / gridSteps, 1, w, h);
+        mapCtx.beginPath();
+        mapCtx.moveTo(p1.x, p1.y);
+        mapCtx.lineTo(p2.x, p2.y);
+        mapCtx.stroke();
+
+        const p3 = worldToScreen(0, i / gridSteps, w, h);
+        const p4 = worldToScreen(1, i / gridSteps, w, h);
+        mapCtx.beginPath();
+        mapCtx.moveTo(p3.x, p3.y);
+        mapCtx.lineTo(p4.x, p4.y);
+        mapCtx.stroke();
+      }
+
+      // Draw Category Cluster Nebula Halos & Watermark Labels
+      Object.entries(CATEGORIES).forEach(([catName, meta]) => {
+        if (state.activeCategory !== 'ALL' && state.activeCategory !== catName) return;
+        const pos = worldToScreen(meta.cluster.x, meta.cluster.y, w, h);
+        const haloRadius = 85 * state.camera.zoom;
+
+        const nebula = mapCtx.createRadialGradient(pos.x, pos.y, 4, pos.x, pos.y, haloRadius);
+        nebula.addColorStop(0, meta.bg);
+        nebula.addColorStop(1, 'rgba(7, 9, 14, 0)');
+        mapCtx.fillStyle = nebula;
+        mapCtx.beginPath();
+        mapCtx.arc(pos.x, pos.y, haloRadius, 0, Math.PI * 2);
+        mapCtx.fill();
+
+        mapCtx.font = '700 11px "JetBrains Mono", monospace';
+        mapCtx.fillStyle = 'rgba(148, 163, 184, 0.32)';
+        mapCtx.textAlign = 'center';
+        mapCtx.fillText(catName.toUpperCase(), pos.x, pos.y - haloRadius * 0.62);
+      });
+
+      // Draw Nearest-Neighbor Connection Lines for Active Sample
+      const activeSample = state.filteredSamples.find(s => s.id === state.activeSampleId);
+      if (activeSample) {
+        const aPos = worldToScreen(activeSample.x, activeSample.y, w, h);
+        const neighbors = state.filteredSamples
+          .filter(s => s.id !== activeSample.id)
+          .map(s => ({ s, dist: Math.hypot(s.x - activeSample.x, s.y - activeSample.y) }))
+          .sort((a, b) => a.dist - b.dist)
+          .slice(0, 4);
+
+        neighbors.forEach(({ s, dist }) => {
+          const nPos = worldToScreen(s.x, s.y, w, h);
+          mapCtx.strokeStyle = `rgba(34, 211, 238, ${Math.max(0.08, 0.32 - dist)})`;
+          mapCtx.lineWidth = 1;
+          mapCtx.setLineDash([4, 4]);
+          mapCtx.beginPath();
+          mapCtx.moveTo(aPos.x, aPos.y);
+          mapCtx.lineTo(nPos.x, nPos.y);
+          mapCtx.stroke();
+        });
+        mapCtx.setLineDash([]);
+      }
+
+      // Draw Sample Nodes
+      const now = performance.now();
+      state.filteredSamples.forEach(sample => {
+        const pos = worldToScreen(sample.x, sample.y, w, h);
+        const catMeta = CATEGORIES[sample.category] || CATEGORIES['Synths'];
+        const isSelected = state.selectedIds.has(sample.id);
+        const isActive = sample.id === state.activeSampleId;
+        const isHovered = sample.id === state.hoveredSampleId;
+
+        const baseR = isActive ? 8.5 : (isSelected ? 7 : (isHovered ? 7.5 : 5.5));
+
+        // Animated sonar pulse ring for active playing sample
+        if (isActive) {
+          const pulse = ((now % 1400) / 1400);
+          mapCtx.strokeStyle = `rgba(34, 211, 238, ${1 - pulse})`;
+          mapCtx.lineWidth = 2;
+          mapCtx.beginPath();
+          mapCtx.arc(pos.x, pos.y, baseR + pulse * 18, 0, Math.PI * 2);
+          mapCtx.stroke();
+        }
+
+        // Batch Selection Ring
+        if (isSelected) {
+          mapCtx.strokeStyle = isActive ? '#ffffff' : '#fbbf24';
+          mapCtx.lineWidth = 2;
+          mapCtx.beginPath();
+          mapCtx.arc(pos.x, pos.y, baseR + 3.5, 0, Math.PI * 2);
+          mapCtx.stroke();
+        }
+
+        // Core Dot
+        mapCtx.fillStyle = catMeta.color;
+        mapCtx.shadowColor = catMeta.color;
+        mapCtx.shadowBlur = (isActive || isHovered) ? 14 : 5;
+        mapCtx.beginPath();
+        mapCtx.arc(pos.x, pos.y, baseR, 0, Math.PI * 2);
+        mapCtx.fill();
+        mapCtx.shadowBlur = 0;
+
+        // Show label when zoomed in or active/hovered
+        if (state.camera.zoom >= 1.45 || isActive || isHovered) {
+          mapCtx.font = isActive ? '600 11px Inter, sans-serif' : '500 10px Inter, sans-serif';
+          mapCtx.fillStyle = isActive ? '#ffffff' : 'rgba(226, 232, 240, 0.85)';
+          mapCtx.textAlign = 'left';
+          mapCtx.fillText(sample.name.replace('WF_', '').replace('.wav', ''), pos.x + baseR + 6, pos.y + 3.5);
+        }
+      });
+
+      // Draw Freeform Lasso Polygon if active
+      if (state.isLassoing && state.lassoPoints.length > 1) {
+        mapCtx.fillStyle = 'rgba(251, 191, 36, 0.14)';
+        mapCtx.strokeStyle = '#fbbf24';
+        mapCtx.lineWidth = 2;
+        mapCtx.setLineDash([5, 4]);
+        mapCtx.beginPath();
+        mapCtx.moveTo(state.lassoPoints[0].x, state.lassoPoints[0].y);
+        for (let i = 1; i < state.lassoPoints.length; i++) {
+          mapCtx.lineTo(state.lassoPoints[i].x, state.lassoPoints[i].y);
+        }
+        mapCtx.closePath();
+        mapCtx.fill();
+        mapCtx.stroke();
+        mapCtx.setLineDash([]);
+      }
+
+      mapCtx.restore();
+    }
+
+    // ==================== 12. REAL-TIME WAVEFORM CANVAS RENDERER ====================
+    const waveCanvas = document.getElementById('waveformCanvas');
+    const waveCtx = waveCanvas.getContext('2d');
+
+    function renderWaveform() {
+      const rect = waveCanvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      if (waveCanvas.width !== Math.floor(rect.width * dpr) || waveCanvas.height !== Math.floor(rect.height * dpr)) {
+        waveCanvas.width = Math.floor(rect.width * dpr);
+        waveCanvas.height = Math.floor(rect.height * dpr);
+      }
+
+      const w = rect.width;
+      const h = rect.height;
+      waveCtx.save();
+      waveCtx.scale(dpr, dpr);
+      waveCtx.clearRect(0, 0, w, h);
+
+      const sample = state.samples.find(s => s.id === state.activeSampleId);
+      if (!sample || !sample.peaks) {
+        waveCtx.restore();
+        return;
+      }
+
+      const catMeta = CATEGORIES[sample.category] || CATEGORIES['Synths'];
+      const peaks = sample.peaks;
+      const barCount = peaks.length;
+      const gap = 1.5;
+      const barWidth = Math.max(1.5, (w - gap * (barCount - 1)) / barCount);
+
+      // Calculate playback progress 0..1
+      let progress = 0;
+      if (state.isPlaying && state.audioCtx && state.playDuration > 0) {
+        const elapsed = state.audioCtx.currentTime - state.playStartTime;
+        progress = Math.min(1, Math.max(0, elapsed / state.playDuration));
+      }
+
+      for (let i = 0; i < barCount; i++) {
+        const amp = Math.max(0.08, peaks[i]);
+        const barH = amp * (h * 0.88);
+        const x = i * (barWidth + gap);
+        const y = (h - barH) / 2;
+        const barRatio = i / barCount;
+
+        if (state.isPlaying && barRatio <= progress) {
+          waveCtx.fillStyle = '#ffffff';
+        } else {
+          waveCtx.fillStyle = catMeta.color;
+        }
+
+        waveCtx.beginPath();
+        waveCtx.roundRect(x, y, barWidth, barH, 2);
+        waveCtx.fill();
+      }
+
+      // Playhead vertical cursor
+      if (state.isPlaying && progress > 0 && progress < 1) {
+        const px = progress * w;
+        waveCtx.strokeStyle = '#ffffff';
+        waveCtx.lineWidth = 1.5;
+        waveCtx.beginPath();
+        waveCtx.moveTo(px, 0);
+        waveCtx.lineTo(px, h);
+        waveCtx.stroke();
+      }
+
+      waveCtx.restore();
+    }
+
+    // Main 60fps Animation Loop
+    function animationLoop() {
+      renderSimilarityMap();
+      renderWaveform();
+      requestAnimationFrame(animationLoop);
+    }
+
+    // ==================== 13. MAP POINTER, LASSO & KEYBOARD INTERACTIONS ====================
+    function findSampleAtPoint(sx, sy) {
+      const rect = mapCanvas.getBoundingClientRect();
+      let closest = null;
+      let minDist = 14; // hit radius in px
+      for (const s of state.filteredSamples) {
+        const pos = worldToScreen(s.x, s.y, rect.width, rect.height);
+        const d = Math.hypot(pos.x - sx, pos.y - sy);
+        if (d < minDist) {
+          minDist = d;
+          closest = s;
+        }
+      }
+      return closest;
+    }
+
+    function updateTooltip(sample, sx, sy) {
+      const tooltip = document.getElementById('mapTooltip');
+      if (!sample) {
+        tooltip.classList.add('hidden');
+        return;
+      }
+      const meta = CATEGORIES[sample.category] || CATEGORIES['Synths'];
+      const catEl = document.getElementById('tooltipCategory');
+      catEl.textContent = sample.category;
+      catEl.style.color = meta.color;
+      catEl.style.backgroundColor = meta.bg;
+
+      document.getElementById('tooltipMeta').textContent = `${sample.bpm} BPM • ${sample.key}`;
+      document.getElementById('tooltipName').textContent = sample.name;
+      document.getElementById('tooltipPath').textContent = getVirtualPath(sample);
+
+      const rect = mapCanvas.getBoundingClientRect();
+      const left = Math.min(rect.width - 240, Math.max(12, sx + 14));
+      const top = Math.min(rect.height - 80, Math.max(12, sy - 12));
+      tooltip.style.left = `${left}px`;
+      tooltip.style.top = `${top}px`;
+      tooltip.classList.remove('hidden');
+    }
+
+    mapCanvas.addEventListener('pointerdown', (e) => {
+      const rect = mapCanvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+
+      if (state.interactionMode === 'lasso' || e.shiftKey) {
+        state.isLassoing = true;
+        state.lassoPoints = [{ x: sx, y: sy }];
+        mapCanvas.setPointerCapture(e.pointerId);
+        return;
+      }
+
+      const hit = findSampleAtPoint(sx, sy);
+      if (hit) {
+        selectActiveSample(hit.id, true, e.ctrlKey || e.metaKey);
+      } else {
+        state.isPanning = true;
+        state.panStart = { x: e.clientX - state.camera.x, y: e.clientY - state.camera.y };
+        mapCanvas.style.cursor = 'grabbing';
+        mapCanvas.setPointerCapture(e.pointerId);
+      }
+    });
+
+    mapCanvas.addEventListener('pointermove', (e) => {
+      const rect = mapCanvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+
+      if (state.isLassoing) {
+        state.lassoPoints.push({ x: sx, y: sy });
+        return;
+      }
+
+      if (state.isPanning) {
+        state.camera.x = e.clientX - state.panStart.x;
+        state.camera.y = e.clientY - state.panStart.y;
+        return;
+      }
+
+      const hit = findSampleAtPoint(sx, sy);
+      if (hit) {
+        mapCanvas.style.cursor = 'pointer';
+        updateTooltip(hit, sx, sy);
+        if (state.hoveredSampleId !== hit.id) {
+          state.hoveredSampleId = hit.id;
+          if (state.hoverAudition) {
+            selectActiveSample(hit.id, true, false);
+          }
+        }
+      } else {
+        state.hoveredSampleId = null;
+        mapCanvas.style.cursor = state.interactionMode === 'lasso' ? 'crosshair' : 'grab';
+        updateTooltip(null);
+      }
+    });
+
+    mapCanvas.addEventListener('pointerup', (e) => {
+      if (state.isLassoing) {
+        const rect = mapCanvas.getBoundingClientRect();
+        if (state.lassoPoints.length > 2) {
+          const captured = state.filteredSamples.filter(s => {
+            const pos = worldToScreen(s.x, s.y, rect.width, rect.height);
+            return pointInPolygon(pos, state.lassoPoints);
+          });
+          if (captured.length > 0) {
+            state.selectedIds = new Set(captured.map(s => s.id));
+            state.activeSampleId = captured[0].id;
+            updateInspectorDeck();
+            renderSelectedBatchList();
+            playSample(captured[0]);
+            showToast(`Lasso selected ${captured.length} sample(s)`, 'amber');
+          }
+        }
+        state.isLassoing = false;
+        state.lassoPoints = [];
+      }
+      if (state.isPanning) {
+        state.isPanning = false;
+        mapCanvas.style.cursor = 'crosshair';
+      }
+    });
+
+    mapCanvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
+      state.camera.zoom = Math.min(4.0, Math.max(0.65, state.camera.zoom * zoomFactor));
+    }, { passive: false });
+
+    // Keyboard Navigation: Spacebar replay & Arrow keys nearest-neighbor jump
+    window.addEventListener('keydown', (e) => {
+      if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        const active = state.samples.find(s => s.id === state.activeSampleId);
+        if (active) playSample(active);
+        return;
+      }
+
+      const dirMap = {
+        ArrowRight: { dx: 1, dy: 0 },
+        ArrowLeft:  { dx: -1, dy: 0 },
+        ArrowDown:  { dx: 0, dy: 1 },
+        ArrowUp:    { dx: 0, dy: -1 },
+      };
+
+      if (dirMap[e.key]) {
+        e.preventDefault();
+        const current = state.filteredSamples.find(s => s.id === state.activeSampleId);
+        if (!current) return;
+        const { dx, dy } = dirMap[e.key];
+        let best = null;
+        let bestScore = Infinity;
+
+        for (const candidate of state.filteredSamples) {
+          if (candidate.id === current.id) continue;
+          const vx = candidate.x - current.x;
+          const vy = candidate.y - current.y;
+          const dist = Math.hypot(vx, vy);
+          if (dist < 0.0001) continue;
+          const dot = (vx * dx + vy * dy) / dist;
+          if (dot > 0.35) {
+            const score = dist / dot;
+            if (score < bestScore) {
+              bestScore = score;
+              best = candidate;
+            }
+          }
+        }
+
+        if (best) {
+          selectActiveSample(best.id, true, false);
+        }
+      }
+    });
+
+    // ==================== 14. NATIVE FOLDER SCANNER, FILE UPLOAD & OS DAW DRAG-AND-DROP ====================
+    const AUDIO_EXT_REGEX = /\.(wav|aif|aiff|mp3|ogg|flac)$/i;
+
+    /**
+     * Recursively scans a directory using `@tauri-apps/plugin-fs`
+     */
+    async function collectAudioPathsRecursive(dirPath, acc = []) {
+      const entries = await window.__TAURI__.fs.readDir(dirPath);
+      const sep = dirPath.includes('\\') ? '\\' : '/';
+      for (const entry of entries) {
+        const fullPath = `${dirPath}${sep}${entry.name}`;
+        if (entry.isDirectory) {
+          await collectAudioPathsRecursive(fullPath, acc);
+        } else if (entry.isFile && AUDIO_EXT_REGEX.test(entry.name)) {
+          acc.push({ name: entry.name, path: fullPath });
+        }
+      }
+      return acc;
+    }
+
+    /**
+     * Scans a local directory natively via Tauri Dialog + FS, decodes audio,
+     * classifies BPM/Key/Category, plots onto 2D map, and saves to SQLite.
+     */
+    async function scanNativeFolderTauri() {
+      try {
+        const selectedDir = await window.__TAURI__.dialog.open({
+          directory: true,
+          multiple: false,
+          title: 'Select Sample Library Folder to Scan & Map'
+        });
+        if (!selectedDir) return;
+
+        showToast('Scanning folder for audio samples...', 'cyan');
+        const foundFiles = await collectAudioPathsRecursive(selectedDir);
+        if (foundFiles.length === 0) {
+          showToast('No WAV/audio files found in selected folder.', 'amber');
+          return;
+        }
+
+        const ctx = getAudioContext();
+        let importedCount = 0;
+
+        for (let i = 0; i < foundFiles.length; i++) {
+          const item = foundFiles[i];
+          try {
+            const rawBytes = await window.__TAURI__.fs.readFile(item.path);
+            const arrayBuf = rawBytes.buffer.slice(rawBytes.byteOffset, rawBytes.byteOffset + rawBytes.byteLength);
+            const audioBuf = await ctx.decodeAudioData(arrayBuf);
+            const peaks = extractWaveformPeaks(audioBuf, 100);
+            const meta = classifyAudioMetadata(item.name, audioBuf, state.samples.length + i);
+
+            const sampleObj = {
+              id: `fs_${Date.now()}_${i}`,
+              dbId: state.samples.length + 1,
+              name: item.name,
+              filePath: item.path,
+              category: meta.category,
+              bpm: meta.bpm,
+              key: meta.key,
+              duration: audioBuf.duration,
+              x: meta.x,
+              y: meta.y,
+              buffer: audioBuf,
+              peaks,
+              isUserUploaded: true
+            };
+
+            state.samples.unshift(sampleObj);
+            await persistSampleToSqlite(sampleObj);
+            importedCount++;
+          } catch (decodeErr) {
+            console.warn(`Skipped unreadable audio file ${item.name}:`, decodeErr);
+          }
+        }
+
+        if (importedCount > 0) {
+          state.activeSampleId = state.samples[0].id;
+          state.selectedIds = new Set([state.samples[0].id]);
+          renderCategoryPills();
+          applyFilters();
+          updateInspectorDeck();
+          renderSelectedBatchList();
+          playSample(state.samples[0]);
+          showToast(`Indexed & saved ${importedCount} samples to SQLite`, 'emerald');
+        }
+      } catch (err) {
+        console.error('Native folder scan failed:', err);
+        showToast('Folder scan error — check console details.', 'rose');
+      }
+    }
+
+    /**
+     * Ingests FileList from either `<input webkitdirectory>` or `<input multiple>`
+     */
+    async function ingestBrowserFileList(fileList) {
+      const files = Array.from(fileList || []).filter(f => AUDIO_EXT_REGEX.test(f.name) || f.type.startsWith('audio/'));
+      if (!files.length) return;
+
+      const ctx = getAudioContext();
+      let addedCount = 0;
+
+      for (const file of files) {
+        try {
+          const arrayBuf = await file.arrayBuffer();
+          const audioBuf = await ctx.decodeAudioData(arrayBuf);
+          const peaks = extractWaveformPeaks(audioBuf, 100);
+          const meta = classifyAudioMetadata(file.name, audioBuf, state.samples.length + addedCount);
+
+          const newSample = {
+            id: `user_${Date.now()}_${addedCount}`,
+            dbId: state.samples.length + 1,
+            name: file.name,
+            filePath: file.webkitRelativePath || `browser://${file.name}`,
+            category: meta.category,
+            bpm: meta.bpm,
+            key: meta.key,
+            duration: audioBuf.duration,
+            x: meta.x,
+            y: meta.y,
+            buffer: audioBuf,
+            peaks,
+            isUserUploaded: true
+          };
+
+          state.samples.unshift(newSample);
+          await persistSampleToSqlite(newSample);
+          state.activeSampleId = newSample.id;
+          state.selectedIds = new Set([newSample.id]);
+          addedCount++;
+        } catch (err) {
+          console.warn(`Could not decode ${file.name}:`, err);
+        }
+      }
+
+      if (addedCount > 0) {
+        renderCategoryPills();
+        applyFilters();
+        updateInspectorDeck();
+        renderSelectedBatchList();
+        const active = state.samples.find(s => s.id === state.activeSampleId);
+        if (active) playSample(active);
+        showToast(`Imported & mapped ${addedCount} audio sample(s)`, 'emerald');
+      }
+    }
+
+    document.getElementById('scanFolderBtn').addEventListener('click', () => {
+      if (isTauri && window.__TAURI__?.dialog && window.__TAURI__?.fs) {
+        scanNativeFolderTauri();
+      } else {
+        document.getElementById('folderBrowserInput').click();
+      }
+    });
+
+    document.getElementById('folderBrowserInput').addEventListener('change', async (e) => {
+      await ingestBrowserFileList(e.target.files);
+      e.target.value = '';
+    });
+
+    document.getElementById('audioUploadInput').addEventListener('change', async (e) => {
+      await ingestBrowserFileList(e.target.files);
+      e.target.value = '';
+    });
+
+    function attachWavDragPayload(dragEvent, sample) {
+      if (!sample || !sample.buffer) return;
+      const wavBlob = audioBufferToWavBlob(sample.buffer);
+      const blobUrl = URL.createObjectURL(wavBlob);
+      dragEvent.dataTransfer.setData('DownloadURL', `audio/wav:${sample.name}:${blobUrl}`);
+      dragEvent.dataTransfer.setData('text/plain', sample.name);
+      dragEvent.dataTransfer.effectAllowed = 'copy';
+    }
+
+    // Native OS-Level DAW Drag-and-Drop (Tauri) + HTML5 Drag Fallback (Browser)
+    const dawDragHandle = document.getElementById('dawDragHandle');
+
+    dawDragHandle.addEventListener('mousedown', async (e) => {
+      if (!isTauri || !window.__TAURI__?.drag || !window.__TAURI__?.core) return;
+      e.preventDefault();
+
+      const active = state.samples.find(s => s.id === state.activeSampleId);
+      if (!active) return;
+
+      try {
+        let dragFilePath = active.filePath;
+        const isUnmodified = state.pitchSemitones === 0 && Math.abs(state.playbackRate - 1.0) < 0.001;
+        const isRealDiskFile = dragFilePath && !dragFilePath.startsWith('virtual://') && !dragFilePath.startsWith('browser://');
+
+        if (!isRealDiskFile || !isUnmodified) {
+          const processedBuf = await renderProcessedBuffer(active);
+          if (!processedBuf) return;
+          const wavBytes = encodeWavBytes(processedBuf);
+          const suffix = isUnmodified ? '' : `_${state.pitchSemitones}st_${state.playbackRate.toFixed(2)}x`;
+          const stagedFilename = active.name.replace(/\.wav$/i, '') + `${suffix}.wav`;
+
+          dragFilePath = await window.__TAURI__.core.invoke('stage_temp_wav', {
+            filename: stagedFilename,
+            wavBytes: Array.from(wavBytes)
+          });
+        }
+
+        await window.__TAURI__.drag.startDrag({
+          item: [dragFilePath],
+          icon: ''
+        });
+      } catch (err) {
+        console.error('Native Tauri DAW drag error:', err);
+        showToast('DAW drag error — try Export WAV button', 'amber');
+      }
+    });
+
+    dawDragHandle.addEventListener('dragstart', (e) => {
+      if (isTauri) {
+        e.preventDefault();
+        return;
+      }
+      const active = state.samples.find(s => s.id === state.activeSampleId);
+      attachWavDragPayload(e, active);
+    });
+
+    document.getElementById('downloadSingleWavBtn').addEventListener('click', async () => {
+      const active = state.samples.find(s => s.id === state.activeSampleId);
+      if (!active) return;
+      const processedBuf = await renderProcessedBuffer(active);
+      if (!processedBuf) return;
+      const wavBlob = audioBufferToWavBlob(processedBuf);
+      const isUnmodified = state.pitchSemitones === 0 && Math.abs(state.playbackRate - 1.0) < 0.001;
+      const outName = isUnmodified
+        ? active.name
+        : active.name.replace(/\.wav$/i, '') + `_${state.pitchSemitones}st_${state.playbackRate.toFixed(2)}x.wav`;
+      triggerBrowserDownload(wavBlob, outName);
+      showToast(`Exported ${outName}`, 'emerald');
+    });
+
+    // Reset SQLite / Demo Database Button
+    document.getElementById('resetDbBtn').addEventListener('click', async () => {
+      if (sqliteDb) {
+        try {
+          await sqliteDb.execute('DELETE FROM samples');
+          await sqliteDb.execute('DELETE FROM sync_history');
+        } catch (err) {
+          console.warn('SQLite reset error:', err);
+        }
+      }
+      state.selectedIds.clear();
+      await initializeSamples();
+      showToast('Library reset to default studio pack', 'cyan');
+    });
+
+    // ==================== 15. TOOLBAR & DECK CONTROL LISTENERS ====================
+    const searchInput = document.getElementById('searchInput');
+    const clearSearchBtn = document.getElementById('clearSearchBtn');
+    searchInput.addEventListener('input', (e) => {
+      state.searchQuery = e.target.value;
+      clearSearchBtn.classList.toggle('hidden', !state.searchQuery);
+      applyFilters();
+    });
+    clearSearchBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      state.searchQuery = '';
+      clearSearchBtn.classList.add('hidden');
+      applyFilters();
+    });
+
+    document.getElementById('keyFilter').addEventListener('change', (e) => {
+      state.keyFilter = e.target.value;
+      applyFilters();
+    });
+
+    document.getElementById('bpmMin').addEventListener('change', (e) => {
+      state.bpmMin = Number(e.target.value) || 50;
+      applyFilters();
+    });
+
+    document.getElementById('bpmMax').addEventListener('change', (e) => {
+      state.bpmMax = Number(e.target.value) || 200;
+      applyFilters();
+    });
+
+    // Auto-Organize Virtual Folder Sidebar Toggle
+    const folderModeToggle = document.getElementById('folderModeToggle');
+    const folderTreeSidebar = document.getElementById('folderTreeSidebar');
+    folderModeToggle.addEventListener('click', () => {
+      state.folderModeOpen = !state.folderModeOpen;
+      folderTreeSidebar.classList.toggle('hidden', !state.folderModeOpen);
+      folderTreeSidebar.classList.toggle('flex', state.folderModeOpen);
+      folderModeToggle.classList.toggle('border-emerald-400', state.folderModeOpen);
+      folderModeToggle.classList.toggle('bg-emerald-500/15', state.folderModeOpen);
+      if (state.folderModeOpen) renderFolderTree();
+    });
+
+    document.getElementById('folderSchemaSelect').addEventListener('change', (e) => {
+      state.folderSchema = e.target.value;
+      updateInspectorDeck();
+      renderFolderTree();
+    });
+
+    // Map Interaction Mode Toggles
+    const modeSelectBtn = document.getElementById('modeSelectBtn');
+    const modeLassoBtn = document.getElementById('modeLassoBtn');
+    function setMapMode(mode) {
+      state.interactionMode = mode;
+      if (mode === 'audition') {
+        modeSelectBtn.className = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-cyan-500 text-obsidian-950 shadow-lg shadow-cyan-500/20 transition';
+        modeLassoBtn.className = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium glass-panel text-slate-200 hover:border-amber-400/60 hover:text-amber-300 transition';
+      } else {
+        modeLassoBtn.className = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-amber-400 text-obsidian-950 shadow-lg shadow-amber-400/25 transition';
+        modeSelectBtn.className = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium glass-panel text-slate-200 hover:border-cyan-400/60 hover:text-cyan-300 transition';
+      }
+    }
+    modeSelectBtn.addEventListener('click', () => setMapMode('audition'));
+    modeLassoBtn.addEventListener('click', () => setMapMode('lasso'));
+
+    const hoverAuditionBtn = document.getElementById('hoverAuditionBtn');
+    hoverAuditionBtn.addEventListener('click', () => {
+      state.hoverAudition = !state.hoverAudition;
+      hoverAuditionBtn.innerHTML = state.hoverAudition
+        ? `<i data-lucide="volume-2" class="w-3.5 h-3.5"></i><span class="hidden sm:inline">Hover Play: ON</span>`
+        : `<i data-lucide="volume-x" class="w-3.5 h-3.5 text-slate-400"></i><span class="hidden sm:inline text-slate-400">Hover Play: OFF</span>`;
+      lucide.createIcons();
+    });
+
+    // Zoom Controls
+    document.getElementById('zoomInBtn').addEventListener('click', () => {
+      state.camera.zoom = Math.min(4.0, state.camera.zoom * 1.25);
+    });
+    document.getElementById('zoomOutBtn').addEventListener('click', () => {
+      state.camera.zoom = Math.max(0.65, state.camera.zoom * 0.8);
+    });
+    document.getElementById('resetViewBtn').addEventListener('click', () => {
+      state.camera = { x: 0, y: 0, zoom: 1 };
+    });
+
+    // Deck Play, Waveform Click, Pitch & Rate Sliders
+    document.getElementById('playActiveBtn').addEventListener('click', () => {
+      const active = state.samples.find(s => s.id === state.activeSampleId);
+      if (active) playSample(active);
+    });
+    waveCanvas.addEventListener('click', () => {
+      const active = state.samples.find(s => s.id === state.activeSampleId);
+      if (active) playSample(active);
+    });
+
+    const pitchSlider = document.getElementById('pitchSlider');
+    const pitchValueLabel = document.getElementById('pitchValueLabel');
+    pitchSlider.addEventListener('input', (e) => {
+      state.pitchSemitones = Number(e.target.value);
+      pitchValueLabel.textContent = `${state.pitchSemitones > 0 ? '+' : ''}${state.pitchSemitones} st`;
+      if (state.activeSource && state.activeSource.detune) {
+        state.activeSource.detune.value = state.pitchSemitones * 100;
+      }
+    });
+    document.getElementById('resetPitchBtn').addEventListener('click', () => {
+      state.pitchSemitones = 0;
+      pitchSlider.value = 0;
+      pitchValueLabel.textContent = '0 st';
+      if (state.activeSource && state.activeSource.detune) state.activeSource.detune.value = 0;
+    });
+
+    const rateSlider = document.getElementById('rateSlider');
+    const rateValueLabel = document.getElementById('rateValueLabel');
+    rateSlider.addEventListener('input', (e) => {
+      state.playbackRate = Number(e.target.value);
+      rateValueLabel.textContent = `${state.playbackRate.toFixed(2)}x`;
+      if (state.activeSource) {
+        state.activeSource.playbackRate.value = state.playbackRate;
+      }
+    });
+    document.getElementById('resetRateBtn').addEventListener('click', () => {
+      state.playbackRate = 1.0;
+      rateSlider.value = 1.0;
+      rateValueLabel.textContent = '1.00x';
+      if (state.activeSource) state.activeSource.playbackRate.value = 1.0;
+    });
+
+    // Batch Selection Clear & Destination Export Buttons
+    document.getElementById('clearSelectionBtn').addEventListener('click', () => {
+      state.selectedIds.clear();
+      renderSelectedBatchList();
+    });
+
+    document.querySelectorAll('.export-dest-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        executeBatchExport(btn.dataset.dest);
+      });
+    });
+
+    // Toast Helper
+    function showToast(message, tone = 'cyan') {
+      const container = document.getElementById('toastContainer');
+      const colors = {
+        cyan: 'border-cyan-400/60 bg-obsidian-900 text-cyan-200',
+        emerald: 'border-emerald-400/60 bg-obsidian-900 text-emerald-200',
+        amber: 'border-amber-400/60 bg-obsidian-900 text-amber-200',
+        rose: 'border-rose-400/60 bg-obsidian-900 text-rose-200',
+      };
+      const toast = document.createElement('div');
+      toast.className = `px-3.5 py-2.5 rounded-xl border shadow-2xl text-xs font-medium flex items-center gap-2 backdrop-blur-md transition-all duration-300 ${colors[tone] || colors.cyan}`;
+      toast.innerHTML = `<span class="w-2 h-2 rounded-full bg-current"></span><span>${message}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(8px)';
+        setTimeout(() => toast.remove(), 300);
+      }, 2800);
+    }
+
+    // ==================== 16. BOOTSTRAP APPLICATION ====================
+    window.addEventListener('DOMContentLoaded', async () => {
+      updateRuntimeIndicator();
+      lucide.createIcons();
+      await initializeSamples();
+      requestAnimationFrame(animationLoop);
+    });
+  </script>
+</body>
+</html>
