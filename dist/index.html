@@ -14,6 +14,19 @@
   <script src="https://unpkg.com/lucide@latest"></script>
 
   <script>
+    // Safe global icon refresher so offline/sandbox environments never throw ReferenceError
+    window.refreshIcons = function () {
+      try {
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
+      } catch (e) {
+        console.warn('Icon render skipped:', e);
+      }
+    };
+  </script>
+
+  <script>
     tailwind.config = {
       darkMode: 'class',
       theme: {
@@ -113,13 +126,21 @@
             WAVIE FRESH
           </h1>
           <span class="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
-            v2.4 Studio
+            v2.5 Studio
           </span>
-          <!-- Runtime Environment Status Pill (Tauri Native vs Browser) -->
+          <!-- Runtime Environment Status Pill (Tauri Native vs Chrome Extension vs Browser) -->
           <span id="runtimeBadge" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800/90 text-slate-300 border border-slate-700 flex items-center gap-1.5">
             <span id="runtimeDot" class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
             <span id="runtimeLabel">Detecting Runtime...</span>
           </span>
+          <!-- In-App Auto-Updater Button (Hidden until Tauri update found) -->
+          <button
+            id="installUpdateBtn"
+            class="hidden text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-400/50 items-center gap-1 transition cursor-pointer"
+          >
+            <i data-lucide="arrow-up-circle" class="w-3 h-3 text-amber-300"></i>
+            <span id="installUpdateLabel">Update Ready</span>
+          </button>
         </div>
         <p class="text-[11px] text-slate-400 hidden sm:block">Sonic Similarity Map & Smart WAV Organizer</p>
       </div>
@@ -127,6 +148,16 @@
 
     <!-- Search & Filter Controls -->
     <div class="flex flex-wrap items-center gap-2 flex-1 max-w-4xl justify-end">
+      <!-- Chrome Extension Tab Audio Capture Button (Visible inside Chrome Extension) -->
+      <button
+        id="tabCaptureBtn"
+        title="Record & sample audio directly from the active browser tab"
+        class="hidden items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/50 text-rose-200 transition"
+      >
+        <span id="tabCaptureDot" class="w-2 h-2 rounded-full bg-rose-400"></span>
+        <span id="tabCaptureLabel">Record Tab</span>
+      </button>
+
       <!-- Search Input -->
       <div class="relative flex-1 min-w-[160px] max-w-xs">
         <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
@@ -333,18 +364,36 @@
 
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
-                <span id="deckCategoryBadge" class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                  KICKS
-                </span>
+                <select id="deckCategorySelect" title="Click to override Category" class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 cursor-pointer focus:outline-none">
+                  <option value="Kicks" class="bg-obsidian-900">KICKS</option>
+                  <option value="Bass" class="bg-obsidian-900">BASS</option>
+                  <option value="Snares" class="bg-obsidian-900">SNARES</option>
+                  <option value="Hi-Hats" class="bg-obsidian-900">HI-HATS</option>
+                  <option value="Synths" class="bg-obsidian-900">SYNTHS</option>
+                  <option value="Pads" class="bg-obsidian-900">PADS</option>
+                  <option value="FX" class="bg-obsidian-900">FX</option>
+                </select>
                 <span id="deckDbId" class="text-[10px] font-mono text-slate-500">SQLite #001</span>
               </div>
               <h3 id="deckSampleName" class="text-sm font-bold text-white truncate mt-0.5">
                 WF_Kick_Obsidian808_Cmin.wav
               </h3>
-              <div class="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] font-mono text-slate-400 mt-0.5">
-                <span id="deckBpm" class="text-amber-300">128 BPM</span>
+              <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] font-mono text-slate-400 mt-0.5">
+                <label class="inline-flex items-center gap-1 text-amber-300 cursor-pointer" title="Click to edit BPM">
+                  <input id="deckBpmInput" type="number" min="40" max="240" value="128" class="w-11 bg-obsidian-800/80 border border-obsidian-700 hover:border-amber-400/60 rounded px-1 py-0 text-[11px] font-mono text-amber-300 text-center focus:outline-none" />
+                  <span>BPM</span>
+                </label>
                 <span>•</span>
-                <span id="deckKey" class="text-emerald-300">C min</span>
+                <select id="deckKeySelect" title="Click to override Musical Key" class="bg-obsidian-800/80 border border-obsidian-700 hover:border-emerald-400/60 rounded px-1.5 py-0 text-[11px] font-mono text-emerald-300 cursor-pointer focus:outline-none">
+                  <option value="C min" class="bg-obsidian-900">C min</option>
+                  <option value="D min" class="bg-obsidian-900">D min</option>
+                  <option value="E min" class="bg-obsidian-900">E min</option>
+                  <option value="F min" class="bg-obsidian-900">F min</option>
+                  <option value="F# maj" class="bg-obsidian-900">F# maj</option>
+                  <option value="G min" class="bg-obsidian-900">G min</option>
+                  <option value="A min" class="bg-obsidian-900">A min</option>
+                  <option value="A# min" class="bg-obsidian-900">A# min</option>
+                </select>
                 <span>•</span>
                 <span id="deckDuration">0.68s</span>
                 <span>•</span>
@@ -569,12 +618,15 @@
   <script>
     /**
      * WAVIE FRESH — Graphical WAV Sample Browser & Organizer
-     * Hybrid Desktop (Tauri v2 + SQLite + Native FS/Drag) & Web Browser Engine
+     * Hybrid Desktop (Tauri v2 + Rust DSP + SQLite + Updater), Chrome Extension (MV3 + Tab Capture + IndexedDB) & Web Engine
      */
 
-    // ==================== 0. TAURI V2 RUNTIME DETECTION ====================
+    // ==================== 0. RUNTIME DETECTION (TAURI / CHROME EXTENSION / WEB) ====================
     const isTauri = Boolean(window.__TAURI__);
+    const isChromeExtension = Boolean(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id);
     let sqliteDb = null;
+    let idbHandle = null;
+    let pendingTauriUpdate = null;
 
     function updateRuntimeIndicator() {
       const badge = document.getElementById('runtimeBadge');
@@ -583,13 +635,218 @@
       if (isTauri) {
         badge.className = 'text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5 shadow-sm';
         dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse';
-        label.textContent = 'Desktop Native • SQLite Connected';
+        label.textContent = 'Desktop Native • Rust DSP + SQLite';
+      } else if (isChromeExtension) {
+        badge.className = 'text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-purple-500/15 text-purple-200 border border-purple-400/40 flex items-center gap-1.5 shadow-sm';
+        dot.className = 'w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse';
+        label.textContent = 'Chrome Side Panel • IndexedDB + Tab Rec';
+        const tabBtn = document.getElementById('tabCaptureBtn');
+        if (tabBtn) {
+          tabBtn.classList.remove('hidden');
+          tabBtn.classList.add('flex');
+        }
       } else {
         badge.className = 'text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 flex items-center gap-1.5';
         dot.className = 'w-1.5 h-1.5 rounded-full bg-cyan-400';
         label.textContent = 'Web Browser Mode • In-Memory / File API';
       }
     }
+
+    // ==================== 0B. IN-APP AUTO-UPDATER (TAURI V2) ====================
+    async function checkForTauriUpdates() {
+      if (!isTauri || !window.__TAURI__?.updater) return;
+      try {
+        const update = await window.__TAURI__.updater.check();
+        if (update && update.available) {
+          pendingTauriUpdate = update;
+          const btn = document.getElementById('installUpdateBtn');
+          const lbl = document.getElementById('installUpdateLabel');
+          lbl.textContent = `Install v${update.version}`;
+          btn.classList.remove('hidden');
+          btn.classList.add('flex');
+          showToast(`Wavie Fresh v${update.version} is available!`, 'amber');
+        }
+      } catch (err) {
+        console.debug('Updater check skipped:', err);
+      }
+    }
+
+    document.getElementById('installUpdateBtn').addEventListener('click', async () => {
+      if (!pendingTauriUpdate) return;
+      const lbl = document.getElementById('installUpdateLabel');
+      try {
+        lbl.textContent = 'Downloading...';
+        await pendingTauriUpdate.downloadAndInstall();
+        if (window.__TAURI__?.process?.relaunch) {
+          await window.__TAURI__.process.relaunch();
+        }
+      } catch (err) {
+        console.error('Auto-update install failed:', err);
+        lbl.textContent = 'Update Failed';
+        showToast('Update installation failed — check GitHub Releases.', 'rose');
+      }
+    });
+
+    // ==================== 0C. INDEXEDDB PERSISTENCE (CHROME EXTENSION / BROWSER) ====================
+    function openExtensionIndexedDB() {
+      return new Promise((resolve) => {
+        if (!window.indexedDB) return resolve(null);
+        const req = indexedDB.open('WavieFreshDB', 1);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('samples')) {
+            db.createObjectStore('samples', { keyPath: 'id' });
+          }
+          if (!db.objectStoreNames.contains('sync_history')) {
+            db.createObjectStore('sync_history', { keyPath: 'id', autoIncrement: true });
+          }
+        };
+        req.onsuccess = (e) => resolve(e.target.result);
+        req.onerror = () => resolve(null);
+      });
+    }
+
+    async function persistSampleToIndexedDB(sample) {
+      if (!idbHandle) return;
+      try {
+        const wavBytes = sample.buffer ? encodeWavBytes(sample.buffer) : null;
+        const tx = idbHandle.transaction('samples', 'readwrite');
+        tx.objectStore('samples').put({
+          id: sample.id,
+          dbId: sample.dbId,
+          name: sample.name,
+          filePath: sample.filePath,
+          category: sample.category,
+          bpm: sample.bpm,
+          key: sample.key,
+          duration: sample.duration,
+          x: sample.x,
+          y: sample.y,
+          peaks: sample.peaks,
+          wavBytes,
+          isUserUploaded: sample.isUserUploaded
+        });
+      } catch (err) {
+        console.warn('IndexedDB sample save warning:', err);
+      }
+    }
+
+    async function loadSamplesFromIndexedDB() {
+      if (!idbHandle) return [];
+      return new Promise((resolve) => {
+        try {
+          const tx = idbHandle.transaction('samples', 'readonly');
+          const req = tx.objectStore('samples').getAll();
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => resolve([]);
+        } catch {
+          resolve([]);
+        }
+      });
+    }
+
+    // ==================== 0D. CHROME TAB AUDIO CAPTURE SAMPLER ====================
+    let tabMediaRecorder = null;
+    let tabCaptureStream = null;
+    let tabRecordedChunks = [];
+
+    async function toggleChromeTabRecording() {
+      const btn = document.getElementById('tabCaptureBtn');
+      const dot = document.getElementById('tabCaptureDot');
+      const label = document.getElementById('tabCaptureLabel');
+
+      if (tabMediaRecorder && tabMediaRecorder.state === 'recording') {
+        tabMediaRecorder.stop();
+        return;
+      }
+
+      if (!isChromeExtension) return;
+
+      chrome.runtime.sendMessage({ type: 'GET_TAB_CAPTURE_STREAM_ID' }, async (response) => {
+        if (!response || response.error || !response.streamId) {
+          showToast(response?.error || 'Could not capture active tab audio.', 'rose');
+          return;
+        }
+
+        try {
+          tabCaptureStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              mandatory: {
+                chromeMediaSource: 'tab',
+                chromeMediaSourceId: response.streamId
+              }
+            },
+            video: false
+          });
+
+          // Route captured tab audio back to speakers so user still hears the tab while sampling
+          const ctx = getAudioContext();
+          const passThrough = ctx.createMediaStreamSource(tabCaptureStream);
+          passThrough.connect(ctx.destination);
+
+          tabRecordedChunks = [];
+          tabMediaRecorder = new MediaRecorder(tabCaptureStream);
+          const cleanTitle = (response.tabTitle || 'BrowserTab').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 24);
+
+          tabMediaRecorder.ondataavailable = (ev) => {
+            if (ev.data && ev.data.size > 0) tabRecordedChunks.push(ev.data);
+          };
+
+          tabMediaRecorder.onstop = async () => {
+            tabCaptureStream.getTracks().forEach(t => t.stop());
+            btn.classList.remove('animate-pulse', 'bg-rose-500/40');
+            dot.className = 'w-2 h-2 rounded-full bg-rose-400';
+            label.textContent = 'Record Tab';
+
+            const blob = new Blob(tabRecordedChunks, { type: 'audio/webm' });
+            const arrayBuf = await blob.arrayBuffer();
+            const audioBuf = await getAudioContext().decodeAudioData(arrayBuf);
+            const peaks = extractWaveformPeaks(audioBuf, 100);
+            const filename = `WF_TabCap_${cleanTitle}_${Date.now().toString().slice(-4)}.wav`;
+            const meta = classifyAudioMetadata(filename, audioBuf, state.samples.length + 1);
+
+            const capturedSample = {
+              id: `tab_${Date.now()}`,
+              dbId: state.samples.length + 1,
+              name: filename,
+              filePath: `tabcapture://${filename}`,
+              category: meta.category,
+              bpm: meta.bpm,
+              key: meta.key,
+              duration: audioBuf.duration,
+              x: meta.x,
+              y: meta.y,
+              buffer: audioBuf,
+              peaks,
+              isUserUploaded: true
+            };
+
+            state.samples.unshift(capturedSample);
+            await persistSampleToIndexedDB(capturedSample);
+            state.activeSampleId = capturedSample.id;
+            state.selectedIds = new Set([capturedSample.id]);
+
+            renderCategoryPills();
+            applyFilters();
+            updateInspectorDeck();
+            renderSelectedBatchList();
+            playSample(capturedSample);
+            showToast(`Sampled "${filename}" onto 2D Map!`, 'emerald');
+          };
+
+          tabMediaRecorder.start();
+          btn.classList.add('animate-pulse', 'bg-rose-500/40');
+          dot.className = 'w-2 h-2 rounded-full bg-white animate-ping';
+          label.textContent = 'Stop Rec';
+          showToast('Recording browser tab audio — click Stop Rec when ready', 'rose');
+        } catch (err) {
+          console.error('Tab capture error:', err);
+          showToast('Tab audio stream blocked or unavailable.', 'rose');
+        }
+      });
+    }
+
+    document.getElementById('tabCaptureBtn').addEventListener('click', toggleChromeTabRecording);
 
     // ==================== 1. CATEGORY DEFINITIONS & COLOR PALETTE ====================
     const CATEGORIES = {
@@ -682,6 +939,7 @@
     const state = {
       samples: [],
       filteredSamples: [],
+      knownHashes: new Set(),
       activeSampleId: null,
       selectedIds: new Set(),
       activeCategory: 'ALL',
@@ -1099,6 +1357,9 @@
 
     async function initializeSamples() {
       await initSqliteDatabase();
+      if (!isTauri) {
+        idbHandle = await openExtensionIndexedDB();
+      }
       await loadSyncHistoryFromSqlite();
 
       // Check if SQLite already has persisted samples
@@ -1149,6 +1410,39 @@
         } catch (err) {
           console.warn('Error querying SQLite samples:', err);
         }
+      } else if (idbHandle) {
+        // Restore persisted samples from IndexedDB (Chrome Extension / Web)
+        const idbRows = await loadSamplesFromIndexedDB();
+        if (idbRows.length > 0) {
+          const ctx = getAudioContext();
+          for (const row of idbRows) {
+            let buffer = null;
+            if (row.wavBytes) {
+              try {
+                const ab = row.wavBytes.buffer.slice(row.wavBytes.byteOffset, row.wavBytes.byteOffset + row.wavBytes.byteLength);
+                buffer = await ctx.decodeAudioData(ab);
+              } catch {}
+            }
+            if (!buffer) {
+              const seed = RAW_SAMPLES.find(r => r.name === row.name) || { category: row.category, key: row.key, tone: 'sub', brightness: 0.5, decay: row.duration || 0.6 };
+              buffer = await synthesizeSampleBuffer(seed, row.dbId || 0);
+            }
+            state.samples.push({
+              ...row,
+              buffer,
+              peaks: row.peaks || extractWaveformPeaks(buffer, 100)
+            });
+          }
+          state.activeSampleId = state.samples[0].id;
+          state.selectedIds.add(state.samples[0].id);
+          applyFilters();
+          renderCategoryPills();
+          updateInspectorDeck();
+          renderSelectedBatchList();
+          renderHistoryLog();
+          renderFolderTree();
+          return;
+        }
       }
 
       // Seed built-in demo library (and save to SQLite if running in Tauri)
@@ -1183,6 +1477,8 @@
         generated.push(sampleObj);
         if (sqliteDb) {
           await persistSampleToSqlite(sampleObj);
+        } else if (idbHandle) {
+          await persistSampleToIndexedDB(sampleObj);
         }
       }
 
@@ -1280,22 +1576,51 @@
       if (!sample) return;
 
       const catMeta = CATEGORIES[sample.category] || CATEGORIES['Synths'];
-      const badge = document.getElementById('deckCategoryBadge');
-      badge.textContent = sample.category.toUpperCase();
-      badge.style.color = catMeta.color;
-      badge.style.backgroundColor = catMeta.bg;
-      badge.style.borderColor = catMeta.border;
+      const catSelect = document.getElementById('deckCategorySelect');
+      catSelect.value = sample.category;
+      catSelect.style.color = catMeta.color;
+      catSelect.style.backgroundColor = catMeta.bg;
+      catSelect.style.borderColor = catMeta.border;
 
       document.getElementById('deckDbId').textContent = `SQLite #${String(sample.dbId).padStart(3, '0')}`;
       document.getElementById('deckSampleName').textContent = sample.name;
-      document.getElementById('deckBpm').textContent = `${sample.bpm} BPM`;
-      document.getElementById('deckKey').textContent = sample.key;
+      document.getElementById('deckBpmInput').value = sample.bpm;
+      document.getElementById('deckKeySelect').value = sample.key;
       document.getElementById('deckDuration').textContent = `${sample.duration.toFixed(2)}s`;
 
       const vPath = getVirtualPath(sample);
       document.getElementById('deckVirtualFolder').textContent = vPath;
       document.getElementById('activeVirtualPathDisplay').textContent = vPath;
     }
+
+    async function updateActiveSampleMetadata(patch) {
+      const sample = state.samples.find(s => s.id === state.activeSampleId);
+      if (!sample) return;
+      Object.assign(sample, patch);
+      if (patch.category && CATEGORIES[patch.category]) {
+        const c = CATEGORIES[patch.category].cluster;
+        sample.x = Math.min(0.94, Math.max(0.06, c.x + (Math.random() - 0.5) * 0.1));
+        sample.y = Math.min(0.94, Math.max(0.06, c.y + (Math.random() - 0.5) * 0.1));
+      }
+      await persistSampleToSqlite(sample);
+      await persistSampleToIndexedDB(sample);
+      renderCategoryPills();
+      applyFilters();
+      updateInspectorDeck();
+      renderSelectedBatchList();
+      showToast(`Updated ${sample.name} (${sample.category} • ${sample.key} • ${sample.bpm} BPM)`, 'cyan');
+    }
+
+    document.getElementById('deckCategorySelect').addEventListener('change', (e) => {
+      updateActiveSampleMetadata({ category: e.target.value });
+    });
+    document.getElementById('deckBpmInput').addEventListener('change', (e) => {
+      const bpm = Math.min(240, Math.max(40, Number(e.target.value) || 128));
+      updateActiveSampleMetadata({ bpm });
+    });
+    document.getElementById('deckKeySelect').addEventListener('change', (e) => {
+      updateActiveSampleMetadata({ key: e.target.value });
+    });
 
     function selectActiveSample(sampleId, shouldPlay = true, addToBatch = false) {
       const sample = state.samples.find(s => s.id === sampleId);
@@ -1360,7 +1685,7 @@
         `;
       }).join('');
 
-      lucide.createIcons();
+      refreshIcons();
       container.querySelectorAll('.tree-sample-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           selectActiveSample(btn.dataset.sampleId, true, false);
@@ -1381,7 +1706,7 @@
             <p class="text-xs">Click any dot or use <span class="text-amber-400">Lasso Select</span> on the 2D map to batch-select WAVs.</p>
           </div>
         `;
-        lucide.createIcons();
+        refreshIcons();
         return;
       }
 
@@ -1417,7 +1742,7 @@
         `;
       }).join('');
 
-      lucide.createIcons();
+      refreshIcons();
 
       listEl.querySelectorAll('.batch-item').forEach(el => {
         el.addEventListener('click', (e) => {
@@ -1527,7 +1852,7 @@
         statusText.innerHTML = `<i data-lucide="refresh-cw" class="w-3 h-3 animate-spin"></i> ${destination}: ${targetPath}`;
         percentText.textContent = `${pct}%`;
         progressBar.style.width = `${pct}%`;
-        lucide.createIcons();
+        refreshIcons();
 
         // Ensure buffer is decoded if loaded lazily from SQLite
         if (!sample.buffer && sample.filePath && isTauri && window.__TAURI__?.fs) {
@@ -2037,9 +2362,12 @@
     // ==================== 14. NATIVE FOLDER SCANNER, FILE UPLOAD & OS DAW DRAG-AND-DROP ====================
     const AUDIO_EXT_REGEX = /\.(wav|aif|aiff|mp3|ogg|flac)$/i;
 
-    /**
-     * Recursively scans a directory using `@tauri-apps/plugin-fs`
-     */
+    async function computeSha256Hex(arrayBuffer) {
+      if (!crypto?.subtle) return null;
+      const hashBuf = await crypto.subtle.digest('SHA-256', arrayBuffer);
+      return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
     async function collectAudioPathsRecursive(dirPath, acc = []) {
       const entries = await window.__TAURI__.fs.readDir(dirPath);
       const sep = dirPath.includes('\\') ? '\\' : '/';
@@ -2055,9 +2383,116 @@
     }
 
     /**
-     * Scans a local directory natively via Tauri Dialog + FS, decodes audio,
-     * classifies BPM/Key/Category, plots onto 2D map, and saves to SQLite.
+     * Ingests FileList from either `<input webkitdirectory>`, `<input multiple>`, or folder drop
      */
+    async function ingestBrowserFileList(fileList) {
+      const files = Array.from(fileList || []).filter(f => AUDIO_EXT_REGEX.test(f.name) || f.type.startsWith('audio/'));
+      if (!files.length) return;
+
+      const ctx = getAudioContext();
+      let addedCount = 0;
+      let skippedDuplicates = 0;
+
+      for (const file of files) {
+        try {
+          const arrayBuf = await file.arrayBuffer();
+          const sha256 = await computeSha256Hex(arrayBuf);
+          if (sha256 && state.knownHashes.has(sha256)) {
+            skippedDuplicates++;
+            continue;
+          }
+
+          const audioBuf = await ctx.decodeAudioData(arrayBuf.slice(0));
+          const peaks = extractWaveformPeaks(audioBuf, 100);
+          const meta = classifyAudioMetadata(file.name, audioBuf, state.samples.length + addedCount);
+
+          const newSample = {
+            id: `user_${Date.now()}_${addedCount}`,
+            dbId: state.samples.length + 1,
+            name: file.name,
+            filePath: file.webkitRelativePath || `browser://${file.name}`,
+            category: meta.category,
+            bpm: meta.bpm,
+            key: meta.key,
+            duration: audioBuf.duration,
+            x: meta.x,
+            y: meta.y,
+            buffer: audioBuf,
+            peaks,
+            sha256,
+            isUserUploaded: true
+          };
+
+          if (sha256) state.knownHashes.add(sha256);
+          state.samples.unshift(newSample);
+          await persistSampleToSqlite(newSample);
+          await persistSampleToIndexedDB(newSample);
+          state.activeSampleId = newSample.id;
+          state.selectedIds = new Set([newSample.id]);
+          addedCount++;
+        } catch (err) {
+          console.warn(`Could not decode ${file.name}:`, err);
+        }
+      }
+
+      if (addedCount > 0) {
+        renderCategoryPills();
+        applyFilters();
+        updateInspectorDeck();
+        renderSelectedBatchList();
+        const active = state.samples.find(s => s.id === state.activeSampleId);
+        if (active) playSample(active);
+      }
+      if (addedCount > 0 || skippedDuplicates > 0) {
+        const dupMsg = skippedDuplicates > 0 ? ` (${skippedDuplicates} duplicate(s) skipped via SHA-256)` : '';
+        showToast(`Imported ${addedCount} audio sample(s)${dupMsg}`, addedCount > 0 ? 'emerald' : 'amber');
+      }
+    }
+
+    // Recursive Folder & File Drag-and-Drop onto the 2D Similarity Map
+    const mapWrapper = document.getElementById('mapWrapper');
+    async function collectDroppedFilesRecursive(entry, out = []) {
+      if (entry.isFile) {
+        if (!entry.name.startsWith('.') && AUDIO_EXT_REGEX.test(entry.name)) {
+          const f = await new Promise((res, rej) => entry.file(res, rej));
+          out.push(f);
+        }
+      } else if (entry.isDirectory) {
+        const reader = entry.createReader();
+        const readBatch = async () => {
+          const entries = await new Promise((res, rej) => reader.readEntries(res, rej));
+          if (entries.length > 0) {
+            for (const child of entries) await collectDroppedFilesRecursive(child, out);
+            await readBatch();
+          }
+        };
+        await readBatch();
+      }
+    }
+
+    mapWrapper.addEventListener('dragover', (e) => {
+      if (e.dataTransfer?.types?.includes('Files')) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    });
+
+    mapWrapper.addEventListener('drop', async (e) => {
+      if (!e.dataTransfer?.types?.includes('Files')) return;
+      e.preventDefault();
+      const collected = [];
+      const items = Array.from(e.dataTransfer.items || []);
+      if (items.length > 0 && typeof items[0].webkitGetAsEntry === 'function') {
+        for (const item of items) {
+          const entry = item.webkitGetAsEntry();
+          if (entry) await collectDroppedFilesRecursive(entry, collected);
+        }
+      } else {
+        collected.push(...Array.from(e.dataTransfer.files || []));
+      }
+      await ingestBrowserFileList(collected);
+    });
+
     async function scanNativeFolderTauri() {
       try {
         const selectedDir = await window.__TAURI__.dialog.open({
@@ -2067,7 +2502,50 @@
         });
         if (!selectedDir) return;
 
-        showToast('Scanning folder for audio samples...', 'cyan');
+        showToast('Running native Rust DSP spectral & BPM scan...', 'cyan');
+
+        // Use native Rust DSP analyzer (`analyze_audio_folder`) if registered in main.rs
+        if (window.__TAURI__?.core?.invoke) {
+          try {
+            const analyzed = await window.__TAURI__.core.invoke('analyze_audio_folder', {
+              folderPath: selectedDir
+            });
+            if (Array.isArray(analyzed) && analyzed.length > 0) {
+              for (let i = 0; i < analyzed.length; i++) {
+                const item = analyzed[i];
+                const sampleObj = {
+                  id: `rust_${Date.now()}_${i}`,
+                  dbId: state.samples.length + 1,
+                  name: item.name,
+                  filePath: item.file_path,
+                  category: CATEGORIES[item.category] ? item.category : 'Synths',
+                  bpm: Math.round(item.bpm) || 128,
+                  key: item.musical_key || 'C min',
+                  duration: item.duration_sec || 0.65,
+                  x: item.map_x,
+                  y: item.map_y,
+                  buffer: null,
+                  peaks: null,
+                  isUserUploaded: true
+                };
+                state.samples.unshift(sampleObj);
+                await persistSampleToSqlite(sampleObj);
+              }
+              state.activeSampleId = state.samples[0].id;
+              state.selectedIds = new Set([state.samples[0].id]);
+              renderCategoryPills();
+              applyFilters();
+              updateInspectorDeck();
+              renderSelectedBatchList();
+              playSample(state.samples[0]);
+              showToast(`Rust DSP indexed ${analyzed.length} WAVs into SQLite`, 'emerald');
+              return;
+            }
+          } catch (rustErr) {
+            console.warn('Falling back to JS recursive scanner:', rustErr);
+          }
+        }
+
         const foundFiles = await collectAudioPathsRecursive(selectedDir);
         if (foundFiles.length === 0) {
           showToast('No WAV/audio files found in selected folder.', 'amber');
@@ -2123,60 +2601,6 @@
       } catch (err) {
         console.error('Native folder scan failed:', err);
         showToast('Folder scan error — check console details.', 'rose');
-      }
-    }
-
-    /**
-     * Ingests FileList from either `<input webkitdirectory>` or `<input multiple>`
-     */
-    async function ingestBrowserFileList(fileList) {
-      const files = Array.from(fileList || []).filter(f => AUDIO_EXT_REGEX.test(f.name) || f.type.startsWith('audio/'));
-      if (!files.length) return;
-
-      const ctx = getAudioContext();
-      let addedCount = 0;
-
-      for (const file of files) {
-        try {
-          const arrayBuf = await file.arrayBuffer();
-          const audioBuf = await ctx.decodeAudioData(arrayBuf);
-          const peaks = extractWaveformPeaks(audioBuf, 100);
-          const meta = classifyAudioMetadata(file.name, audioBuf, state.samples.length + addedCount);
-
-          const newSample = {
-            id: `user_${Date.now()}_${addedCount}`,
-            dbId: state.samples.length + 1,
-            name: file.name,
-            filePath: file.webkitRelativePath || `browser://${file.name}`,
-            category: meta.category,
-            bpm: meta.bpm,
-            key: meta.key,
-            duration: audioBuf.duration,
-            x: meta.x,
-            y: meta.y,
-            buffer: audioBuf,
-            peaks,
-            isUserUploaded: true
-          };
-
-          state.samples.unshift(newSample);
-          await persistSampleToSqlite(newSample);
-          state.activeSampleId = newSample.id;
-          state.selectedIds = new Set([newSample.id]);
-          addedCount++;
-        } catch (err) {
-          console.warn(`Could not decode ${file.name}:`, err);
-        }
-      }
-
-      if (addedCount > 0) {
-        renderCategoryPills();
-        applyFilters();
-        updateInspectorDeck();
-        renderSelectedBatchList();
-        const active = state.samples.find(s => s.id === state.activeSampleId);
-        if (active) playSample(active);
-        showToast(`Imported & mapped ${addedCount} audio sample(s)`, 'emerald');
       }
     }
 
@@ -2278,6 +2702,13 @@
           console.warn('SQLite reset error:', err);
         }
       }
+      if (idbHandle) {
+        try {
+          const tx = idbHandle.transaction(['samples', 'sync_history'], 'readwrite');
+          tx.objectStore('samples').clear();
+          tx.objectStore('sync_history').clear();
+        } catch {}
+      }
       state.selectedIds.clear();
       await initializeSamples();
       showToast('Library reset to default studio pack', 'cyan');
@@ -2353,7 +2784,7 @@
       hoverAuditionBtn.innerHTML = state.hoverAudition
         ? `<i data-lucide="volume-2" class="w-3.5 h-3.5"></i><span class="hidden sm:inline">Hover Play: ON</span>`
         : `<i data-lucide="volume-x" class="w-3.5 h-3.5 text-slate-400"></i><span class="hidden sm:inline text-slate-400">Hover Play: OFF</span>`;
-      lucide.createIcons();
+      refreshIcons();
     });
 
     // Zoom Controls
@@ -2443,10 +2874,15 @@
 
     // ==================== 16. BOOTSTRAP APPLICATION ====================
     window.addEventListener('DOMContentLoaded', async () => {
-      updateRuntimeIndicator();
-      lucide.createIcons();
-      await initializeSamples();
-      requestAnimationFrame(animationLoop);
+      try {
+        updateRuntimeIndicator();
+        refreshIcons();
+        await initializeSamples();
+        checkForTauriUpdates();
+        requestAnimationFrame(animationLoop);
+      } catch (err) {
+        console.error('Wavie Fresh startup error:', err);
+      }
     });
   </script>
 </body>

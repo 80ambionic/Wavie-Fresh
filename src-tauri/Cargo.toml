@@ -1,0 +1,28 @@
+[package]
+name = "wavie-fresh"
+version = "2.5.0"
+description = "Wavie Fresh — Graphical WAV Sample Browser & Organizer"
+authors = ["Wavie Fresh"]
+edition = "2021"
+
+[lib]
+name = "wavie_fresh_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-process = "2"
+tauri-plugin-sql = { version = "2", features = ["sqlite"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
