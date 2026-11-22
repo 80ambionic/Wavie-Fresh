@@ -4,6 +4,8 @@
   "version": "2.5.0",
   "identifier": "com.wavie.fresh",
   "build": {
+    "beforeBuildCommand": "npm run build:web",
+    "beforeDevCommand": "npm run build:web",
     "frontendDist": "../dist"
   },
   "app": {
@@ -25,7 +27,12 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["dmg", "app", "nsis", "msi"],
+    "targets": [
+      "dmg",
+      "app",
+      "nsis",
+      "msi"
+    ],
     "category": "Music",
     "shortDescription": "Graphical WAV sample browser & organizer",
     "icon": [

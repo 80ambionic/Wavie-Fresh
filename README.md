@@ -28,6 +28,7 @@ The apps aren't code-signed yet, so the OS will warn you the first time:
 - Local SQLite library (`wavie_fresh.db`) that persists between launches
 - Export of organized WAV packs straight into a folder you choose
 - Processed (pitched / stretched) WAVs staged to a temp folder for export
+- **Drag to DAW:** grab the "Drag to DAW" handle and drop the sample straight into Ableton, FL Studio, Logic, etc. Pitch/tempo changes are rendered into the dragged WAV.
 
 ## Developing
 
@@ -39,9 +40,20 @@ npm run dev     # run the desktop app with live reload of dist/
 npm run build   # build installers for the current OS
 ```
 
-The desktop shell lives in `src-tauri/` (Tauri v2). The UI is entirely `dist/index.html`.
+The desktop shell lives in `src-tauri/` (Tauri v2). The UI is `dist/index.html`.
+
+### Offline assets
+
+Tailwind CSS, the Lucide icons and the Inter / JetBrains Mono fonts are bundled in `dist/assets/`, so the web and desktop apps work with no internet connection. After editing `dist/index.html` (new Tailwind classes or `data-lucide` icons), rebuild them:
+
+```bash
+npm run build:web
+```
+
+The desktop build and the GitHub Pages deploy run this automatically. The Tailwind theme (fonts, `obsidian` colors) lives in `tailwind.config.cjs`.
+
+If you paste code from the Google Site version (which loads Tailwind from the CDN), replace its `<head>` CDN tags with the three local `assets/` links at the top of `dist/index.html`.
 
 ## Notes
 
-- The UI loads Tailwind, Lucide icons and Google Fonts from CDNs, so the app needs an internet connection to render correctly.
-- Not wired up yet: in-app auto-updates (needs an update signing key) and native drag-out to a DAW (needs a drag plugin). The app detects both are missing and carries on without them.
+- Not wired up yet: in-app auto-updates (needs an update signing key). The app detects that the updater is missing and carries on without it.
