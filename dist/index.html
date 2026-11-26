@@ -623,7 +623,9 @@
      */
 
     // ==================== 0. RUNTIME DETECTION (TAURI / CHROME EXTENSION / WEB) ====================
-    const isTauri = Boolean(window.__TAURI__);
+    // NOTE: don't name this `isTauri`. Tauri v2 defines a locked (non-configurable) window.isTauri,
+    // and a top-level `const isTauri` then makes WebKit reject this entire script at load time.
+    const IS_TAURI = Boolean(window.__TAURI__);
     const isChromeExtension = Boolean(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id);
     let sqliteDb = null;
     let idbHandle = null;
@@ -633,7 +635,7 @@
       const badge = document.getElementById('runtimeBadge');
       const dot = document.getElementById('runtimeDot');
       const label = document.getElementById('runtimeLabel');
-      if (isTauri) {
+      if (IS_TAURI) {
         badge.className = 'text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5 shadow-sm';
         dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse';
         label.textContent = 'Desktop Native • Rust DSP + SQLite';
@@ -655,7 +657,7 @@
 
     // ==================== 0B. IN-APP AUTO-UPDATER (TAURI V2) ====================
     async function checkForTauriUpdates() {
-      if (!isTauri || !window.__TAURI__?.updater) return;
+      if (!IS_TAURI || !window.__TAURI__?.updater) return;
       try {
         const update = await window.__TAURI__.updater.check();
         if (update && update.available) {
@@ -973,7 +975,7 @@
 
     // ==================== 4. TAURI SQLITE DATABASE LAYER ====================
     async function initSqliteDatabase() {
-      if (!isTauri || !window.__TAURI__?.sql) return null;
+      if (!IS_TAURI || !window.__TAURI__?.sql) return null;
       try {
         sqliteDb = await window.__TAURI__.sql.load('sqlite:wavie_fresh.db');
         // Ensure tables exist even if migration hasn't run
@@ -1174,7 +1176,7 @@
       const ctx = getAudioContext();
 
       // Lazy-load audio buffer from native filePath if loaded from SQLite
-      if (!sample.buffer && sample.filePath && isTauri && window.__TAURI__?.fs) {
+      if (!sample.buffer && sample.filePath && IS_TAURI && window.__TAURI__?.fs) {
         try {
           const rawBytes = await window.__TAURI__.fs.readFile(sample.filePath);
           const arrayBuf = rawBytes.buffer.slice(rawBytes.byteOffset, rawBytes.byteOffset + rawBytes.byteLength);
@@ -1358,7 +1360,7 @@
 
     async function initializeSamples() {
       await initSqliteDatabase();
-      if (!isTauri) {
+      if (!IS_TAURI) {
         idbHandle = await openExtensionIndexedDB();
       }
       await loadSyncHistoryFromSqlite();
@@ -1830,7 +1832,7 @@
 
       // In Tauri Desktop mode, prompt for target root directory when exporting to Local Storage
       let tauriTargetDir = null;
-      if (destination === 'Local Storage' && isTauri && window.__TAURI__?.dialog && window.__TAURI__?.fs) {
+      if (destination === 'Local Storage' && IS_TAURI && window.__TAURI__?.dialog && window.__TAURI__?.fs) {
         try {
           tauriTargetDir = await window.__TAURI__.dialog.open({
             directory: true,
@@ -1856,7 +1858,7 @@
         refreshIcons();
 
         // Ensure buffer is decoded if loaded lazily from SQLite
-        if (!sample.buffer && sample.filePath && isTauri && window.__TAURI__?.fs) {
+        if (!sample.buffer && sample.filePath && IS_TAURI && window.__TAURI__?.fs) {
           try {
             const raw = await window.__TAURI__.fs.readFile(sample.filePath);
             const ab = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength);
@@ -2606,7 +2608,7 @@
     }
 
     document.getElementById('scanFolderBtn').addEventListener('click', () => {
-      if (isTauri && window.__TAURI__?.dialog && window.__TAURI__?.fs) {
+      if (IS_TAURI && window.__TAURI__?.dialog && window.__TAURI__?.fs) {
         scanNativeFolderTauri();
       } else {
         document.getElementById('folderBrowserInput').click();
@@ -2636,7 +2638,7 @@
     const dawDragHandle = document.getElementById('dawDragHandle');
 
     dawDragHandle.addEventListener('mousedown', async (e) => {
-      if (!isTauri || !window.__TAURI__?.drag || !window.__TAURI__?.core) return;
+      if (!IS_TAURI || !window.__TAURI__?.drag || !window.__TAURI__?.core) return;
       e.preventDefault();
 
       const active = state.samples.find(s => s.id === state.activeSampleId);
@@ -2671,7 +2673,7 @@
     });
 
     dawDragHandle.addEventListener('dragstart', (e) => {
-      if (isTauri) {
+      if (IS_TAURI) {
         e.preventDefault();
         return;
       }
