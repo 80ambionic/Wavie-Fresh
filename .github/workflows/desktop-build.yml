@@ -55,6 +55,45 @@ jobs:
       - name: Install npm dependencies
         run: npm install
 
+      # macOS signing. With the Apple secrets set (see README → "macOS code signing"),
+      # the app is signed with your Developer ID and notarized, so it opens on any Mac
+      # with no warning. Without them it is ad-hoc signed, which still needs
+      # System Settings → Privacy & Security → "Open Anyway" on first launch.
+      - name: Configure macOS signing
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          # Only export variables that are actually set, so Tauri never sees empty values.
+          put_env() {
+            local delim
+            delim="EOF_$(openssl rand -hex 8)"
+            { echo "$1<<$delim"; printf '%s\n' "$2"; echo "$delim"; } >> "$GITHUB_ENV"
+          }
+          if [ -n "$APPLE_CERTIFICATE" ] && [ -n "$APPLE_SIGNING_IDENTITY" ]; then
+            put_env APPLE_CERTIFICATE "$APPLE_CERTIFICATE"
+            put_env APPLE_CERTIFICATE_PASSWORD "$APPLE_CERTIFICATE_PASSWORD"
+            put_env APPLE_SIGNING_IDENTITY "$APPLE_SIGNING_IDENTITY"
+            echo "Signing with your Developer ID certificate."
+            if [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+              put_env APPLE_ID "$APPLE_ID"
+              put_env APPLE_PASSWORD "$APPLE_PASSWORD"
+              put_env APPLE_TEAM_ID "$APPLE_TEAM_ID"
+              echo "Notarization enabled."
+            else
+              echo "::warning::APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID not set: the app will be signed but NOT notarized, so other Macs will still warn on first launch."
+            fi
+          else
+            put_env APPLE_SIGNING_IDENTITY "-"
+            echo "::warning::Apple signing secrets not set: building an ad-hoc signed app. Other Macs must use System Settings → Privacy & Security → Open Anyway on first launch. See README → macOS code signing."
+          fi
+
       - name: Build app (and draft release on tags)
         uses: tauri-apps/tauri-action@v0
         env:
@@ -66,6 +105,17 @@ jobs:
           releaseBody: 'Download the installer for your computer below: .dmg for macOS, -setup.exe or .msi for Windows.'
           releaseDraft: true
           prerelease: false
+
+      - name: Report macOS signature
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          for app in src-tauri/target/*/release/bundle/macos/*.app; do
+            echo "== $app"
+            codesign -dv --verbose=2 "$app" 2>&1 | grep -E 'Identifier=|Authority=|Signature=|TeamIdentifier=' || true
+            codesign --verify --deep --strict "$app" && echo "codesign verify: OK" || echo "::warning::codesign verify failed for $app"
+            spctl -a -vv "$app" 2>&1 || true
+          done
 
       - name: Upload installers as workflow artifacts
         uses: actions/upload-artifact@v4
